@@ -1,0 +1,24 @@
+# Render blueprint for Alga.
+# In Render: New + -> Blueprint -> pick your repo, and this configures everything.
+services:
+  - type: web
+    name: alga
+    runtime: node
+    plan: starter            # has a persistent disk; "free" plan does NOT persist data
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: DATA_DIR
+        value: /data          # the mounted persistent disk below
+      - key: SESSION_SECRET
+        generateValue: true    # Render generates a strong random secret
+      - key: ADMIN_EMAIL
+        sync: false            # you fill this in the dashboard
+      - key: ADMIN_PASSWORD
+        sync: false            # you fill this in the dashboard
+    disk:
+      name: alga-data
+      mountPath: /data         # db.json + uploads/ live here, survive redeploys
+      sizeGB: 1

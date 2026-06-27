@@ -1,0 +1,29 @@
+</main>
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div>
+      <div class="brand"><span class="brand-mark">🛏️</span> <span class="brand-text">Alga</span></div>
+      <p class="muted">Find affordable beds, rooms, and rentals across Addis Ababa in minutes.</p>
+    </div>
+    <div class="footer-cols">
+      <div>
+        <h4>Popular areas</h4>
+        <ul>
+          <% C.AREAS.slice(0,5).forEach(function(a){ %>
+            <li><a href="/?area=<%= encodeURIComponent(a) %>"><%= a %></a></li>
+          <% }) %>
+        </ul>
+      </div>
+      <div>
+        <h4>For hosts</h4>
+        <ul>
+          <li><a href="/admin/login">List your bed</a></li>
+          <li><a href="/admin/login">Get verified</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+  <div class="container footer-bottom muted">© <%= new Date().getFullYear() %> Alga · Addis Ababa, Ethiopia</div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,18 @@
+<%- include('../partials/header', { title: 'Admin login — Alga' }) %>
+
+<div class="container auth-wrap">
+  <div class="auth-card">
+    <h1>Host / Admin login</h1>
+    <p class="muted">Sign in to manage listings, beds, and booking requests.</p>
+    <form action="/admin/login" method="POST">
+      <label>Email</label>
+      <input type="email" name="email" placeholder="admin@alga.et" required autofocus />
+      <label>Password</label>
+      <input type="password" name="password" placeholder="••••••••" required />
+      <button type="submit" class="btn btn-primary btn-block">Log in</button>
+    </form>
+    <p class="muted demo-hint">Demo admin: <code>admin@alga.et</code> / <code>admin123</code></p>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

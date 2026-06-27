@@ -1,0 +1,45 @@
+<%- include('../partials/header', { title: 'Booking requests — Alga Admin' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Booking requests</h1>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/admin" class="btn btn-ghost">← Dashboard</a>
+    <a href="/admin/listings" class="btn btn-ghost">Manage listings</a>
+  </div>
+
+  <% if (bookings.length === 0) { %>
+    <div class="empty"><p>No booking requests yet.</p></div>
+  <% } %>
+
+  <table class="table">
+    <thead>
+      <tr><th>Guest</th><th>Listing</th><th>Duration</th><th>Message</th><th>Status</th><th>Action</th></tr>
+    </thead>
+    <tbody>
+      <% bookings.forEach(function(b){ %>
+        <tr>
+          <td><strong><%= b.name %></strong><br><span class="muted"><%= b.phone %></span></td>
+          <td><%= b.listingTitle %></td>
+          <td><%= b.duration || '—' %></td>
+          <td class="msg-cell"><%= b.message || '—' %></td>
+          <td><span class="pill pill-<%= b.status %>"><%= b.status %></span></td>
+          <td class="actions-cell">
+            <form action="/admin/bookings/<%= b.id %>/status" method="POST" class="inline-form">
+              <input type="hidden" name="status" value="accepted" />
+              <button class="btn btn-sm btn-ghost">Accept</button>
+            </form>
+            <form action="/admin/bookings/<%= b.id %>/status" method="POST" class="inline-form">
+              <input type="hidden" name="status" value="declined" />
+              <button class="btn btn-sm btn-ghost">Decline</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('../partials/footer') %>

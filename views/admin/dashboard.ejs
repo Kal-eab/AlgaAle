@@ -1,0 +1,46 @@
+<%- include('../partials/header', { title: 'Dashboard — Alga Admin' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Dashboard</h1>
+    <a href="/admin/listings/new" class="btn btn-primary">+ List a bed / room</a>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat"><div class="stat-num"><%= stats.listings %></div><div class="stat-label">Listings</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.verified %></div><div class="stat-label">Verified</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.featured %></div><div class="stat-label">Featured</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.bookings %></div><div class="stat-label">Bookings</div></div>
+    <div class="stat highlight"><div class="stat-num"><%= stats.pending %></div><div class="stat-label">Pending requests</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.reviews %></div><div class="stat-label">Reviews</div></div>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/admin/listings" class="btn btn-ghost">Manage listings</a>
+    <a href="/admin/bookings" class="btn btn-ghost">Booking requests</a>
+    <a href="/" class="btn btn-ghost">View public site</a>
+  </div>
+
+  <section class="panel">
+    <h3>Recent booking requests</h3>
+    <% if (recentBookings.length === 0) { %>
+      <p class="muted">No booking requests yet.</p>
+    <% } else { %>
+      <table class="table">
+        <thead><tr><th>Guest</th><th>Listing</th><th>Duration</th><th>Status</th></tr></thead>
+        <tbody>
+          <% recentBookings.forEach(function(b){ %>
+            <tr>
+              <td><%= b.name %><br><span class="muted"><%= b.phone %></span></td>
+              <td><%= b.listingTitle %></td>
+              <td><%= b.duration || '—' %></td>
+              <td><span class="pill pill-<%= b.status %>"><%= b.status %></span></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

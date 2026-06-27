@@ -1,0 +1,134 @@
+<%- include('partials/header', { title: 'Alga — Affordable beds & rooms in Addis Ababa' }) %>
+
+<section class="hero">
+  <div class="container">
+    <h1>Find affordable beds, rooms, and rentals across Addis Ababa in minutes.</h1>
+    <p class="hero-sub">Single beds · shared rooms · student hostels · spare rooms · studios — no brokers, no scams.</p>
+
+    <form class="hero-search" action="/" method="GET">
+      <input type="text" name="q" placeholder="Search area, e.g. Bole, student bed, studio…" value="<%= filters.q || '' %>" />
+      <select name="area">
+        <option value="">All areas</option>
+        <% C.AREAS.forEach(function(a){ %>
+          <option value="<%= a %>" <%= filters.area === a ? 'selected' : '' %>><%= a %></option>
+        <% }) %>
+      </select>
+      <select name="period">
+        <option value="">Any term</option>
+        <% C.PERIODS.forEach(function(p){ %>
+          <option value="<%= p.value %>" <%= filters.period === p.value ? 'selected' : '' %>><%= p.label %></option>
+        <% }) %>
+      </select>
+      <button type="submit" class="btn btn-primary">Search</button>
+    </form>
+
+    <div class="area-chips">
+      <% C.AREAS.forEach(function(a){ %>
+        <a class="chip <%= filters.area === a ? 'chip-active' : '' %>" href="/?area=<%= encodeURIComponent(a) %>">📍 <%= a %></a>
+      <% }) %>
+    </div>
+  </div>
+</section>
+
+<div class="container browse-layout">
+  <!-- Filters -->
+  <aside class="filters">
+    <form action="/" method="GET">
+      <input type="hidden" name="q" value="<%= filters.q || '' %>" />
+      <h3>Filters</h3>
+
+      <label>Area</label>
+      <select name="area">
+        <option value="">All areas</option>
+        <% C.AREAS.forEach(function(a){ %>
+          <option value="<%= a %>" <%= filters.area === a ? 'selected' : '' %>><%= a %></option>
+        <% }) %>
+      </select>
+
+      <label>Type</label>
+      <select name="type">
+        <option value="">All types</option>
+        <% C.TYPES.forEach(function(t){ %>
+          <option value="<%= t.value %>" <%= filters.type === t.value ? 'selected' : '' %>><%= t.label %></option>
+        <% }) %>
+      </select>
+
+      <label>Rental term</label>
+      <select name="period">
+        <option value="">Any</option>
+        <% C.PERIODS.forEach(function(p){ %>
+          <option value="<%= p.value %>" <%= filters.period === p.value ? 'selected' : '' %>><%= p.label %></option>
+        <% }) %>
+      </select>
+
+      <label>Suitable for</label>
+      <select name="audience">
+        <option value="">Anyone</option>
+        <% C.AUDIENCES.forEach(function(a){ %>
+          <option value="<%= a.value %>" <%= filters.audience === a.value ? 'selected' : '' %>><%= a.label %></option>
+        <% }) %>
+      </select>
+
+      <label>Max price (birr)</label>
+      <input type="number" name="maxPrice" min="0" step="100" placeholder="e.g. 8000" value="<%= filters.maxPrice || '' %>" />
+
+      <label class="filter-group-label">Amenities</label>
+      <% C.AMENITIES.forEach(function(am){ %>
+        <label class="check"><input type="checkbox" name="<%= am.key %>" <%= filters[am.key] ? 'checked' : '' %>> <%= am.label %></label>
+      <% }) %>
+      <label class="check"><input type="checkbox" name="verified" <%= filters.verified ? 'checked' : '' %>> ✅ Verified only</label>
+
+      <button type="submit" class="btn btn-primary btn-block">Apply filters</button>
+      <a href="/" class="btn btn-ghost btn-block">Reset</a>
+    </form>
+  </aside>
+
+  <!-- Results -->
+  <section class="results">
+    <div class="results-head">
+      <h2><%= listings.length %> place<%= listings.length === 1 ? '' : 's' %> available</h2>
+      <span class="muted"><%= total %> total listings on Alga</span>
+    </div>
+
+    <% if (listings.length === 0) { %>
+      <div class="empty">
+        <p>No listings match your search yet.</p>
+        <a href="/" class="btn btn-ghost">Clear filters</a>
+      </div>
+    <% } %>
+
+    <div class="card-grid">
+      <% listings.forEach(function(l){ %>
+        <a class="card" href="/listing/<%= l.id %>">
+          <div class="card-media">
+            <img src="<%= firstPhoto(l) || ('/placeholder.svg?text=' + encodeURIComponent(C.typeLabel(l.type))) %>" alt="<%= l.title %>" loading="lazy" />
+            <div class="card-badges">
+              <% if (l.featured) { %><span class="badge badge-featured">★ Featured</span><% } %>
+              <% if (l.verified) { %><span class="badge badge-verified">✅ Verified</span><% } %>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="card-price"><%= money(l.price) %> birr <span class="muted">/ <%= C.periodLabel(l.period).toLowerCase() %></span></div>
+            <h3 class="card-title"><%= l.title %></h3>
+            <div class="card-meta">
+              <span>📍 <%= l.area %></span>
+              <span>· <%= C.typeLabel(l.type) %></span>
+            </div>
+            <div class="card-tags">
+              <% if (l.audience && l.audience !== 'any') { %><span class="tag"><%= C.audienceLabel(l.audience) %></span><% } %>
+              <% if (l.furnished) { %><span class="tag">Furnished</span><% } %>
+              <% if (l.wifi) { %><span class="tag">WiFi</span><% } %>
+              <% if (l.water) { %><span class="tag">Water</span><% } %>
+              <% if (l.parking) { %><span class="tag">Parking</span><% } %>
+            </div>
+            <% if (reviewCounts[l.id]) { %>
+              <div class="muted card-reviews">★ <%= reviewCounts[l.id] %> review<%= reviewCounts[l.id] === 1 ? '' : 's' %></div>
+            <% } %>
+          </div>
+        </a>
+      <% }) %>
+    </div>
+  </section>
+</div>
+
+<%- include('partials/footer') %>

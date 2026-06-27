@@ -1,0 +1,65 @@
+<%- include('../partials/header', { title: 'Listings — Alga Admin' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Listings</h1>
+    <a href="/admin/listings/new" class="btn btn-primary">+ New listing</a>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/admin" class="btn btn-ghost">← Dashboard</a>
+    <a href="/admin/bookings" class="btn btn-ghost">Booking requests</a>
+  </div>
+
+  <% if (listings.length === 0) { %>
+    <div class="empty"><p>No listings yet. Add your first bed.</p></div>
+  <% } %>
+
+  <table class="table table-listings">
+    <thead>
+      <tr><th></th><th>Listing</th><th>Area</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      <% listings.forEach(function(l){ %>
+        <tr>
+          <td class="thumb-cell">
+            <img src="<%= firstPhoto(l) || ('/placeholder.svg?text=' + encodeURIComponent(C.typeLabel(l.type))) %>" alt="" />
+          </td>
+          <td>
+            <a href="/listing/<%= l.id %>" class="row-title"><%= l.title %></a>
+            <div class="muted"><%= C.typeLabel(l.type) %> · <%= C.audienceLabel(l.audience) %></div>
+          </td>
+          <td><%= l.area %></td>
+          <td><%= money(l.price) %> birr<br><span class="muted">/ <%= C.periodLabel(l.period).toLowerCase() %></span></td>
+          <td>
+            <div class="status-pills">
+              <% if (l.featured) { %><span class="pill pill-featured">★ Featured</span><% } %>
+              <% if (l.verified) { %><span class="pill pill-verified">✅ Verified</span><% } %>
+              <% if (l.status === 'hidden') { %><span class="pill pill-hidden">Hidden</span><% } else { %><span class="pill pill-active">Active</span><% } %>
+            </div>
+          </td>
+          <td class="actions-cell">
+            <a href="/admin/listings/<%= l.id %>/edit" class="btn btn-sm btn-ghost">Edit</a>
+            <form action="/admin/listings/<%= l.id %>/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="field" value="verified" />
+              <button class="btn btn-sm btn-ghost"><%= l.verified ? 'Unverify' : 'Verify' %></button>
+            </form>
+            <form action="/admin/listings/<%= l.id %>/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="field" value="featured" />
+              <button class="btn btn-sm btn-ghost"><%= l.featured ? 'Unfeature' : 'Feature' %></button>
+            </form>
+            <form action="/admin/listings/<%= l.id %>/toggle" method="POST" class="inline-form">
+              <input type="hidden" name="field" value="status" />
+              <button class="btn btn-sm btn-ghost"><%= l.status === 'hidden' ? 'Show' : 'Hide' %></button>
+            </form>
+            <form action="/admin/listings/<%= l.id %>/delete" method="POST" class="inline-form" onsubmit="return confirm('Delete this listing?')">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+</div>
+
+<%- include('../partials/footer') %>

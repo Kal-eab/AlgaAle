@@ -1,0 +1,133 @@
+<% var editing = !!listing; %>
+<%- include('../partials/header', { title: (editing ? 'Edit' : 'New') + ' listing — Alga Admin' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <h1><%= editing ? 'Edit listing' : 'List a bed / room' %></h1>
+    <a href="/admin/listings" class="btn btn-ghost">← Back to listings</a>
+  </div>
+
+  <form action="<%= editing ? '/admin/listings/' + listing.id : '/admin/listings' %>" method="POST" enctype="multipart/form-data" class="listing-form">
+    <div class="form-grid">
+      <div class="field span-2">
+        <label>Title *</label>
+        <input type="text" name="title" required value="<%= editing ? listing.title : '' %>" placeholder="e.g. Clean single bed in shared room — Bole" />
+      </div>
+
+      <div class="field">
+        <label>Type *</label>
+        <select name="type" required>
+          <% C.TYPES.forEach(function(t){ %>
+            <option value="<%= t.value %>" <%= editing && listing.type === t.value ? 'selected' : '' %>><%= t.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Area *</label>
+        <select name="area" required>
+          <% C.AREAS.forEach(function(a){ %>
+            <option value="<%= a %>" <%= editing && listing.area === a ? 'selected' : '' %>><%= a %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Price (birr) *</label>
+        <input type="number" name="price" min="0" step="50" required value="<%= editing ? listing.price : '' %>" />
+      </div>
+
+      <div class="field">
+        <label>Rental term *</label>
+        <select name="period" required>
+          <% C.PERIODS.forEach(function(p){ %>
+            <option value="<%= p.value %>" <%= editing && listing.period === p.value ? 'selected' : '' %>><%= p.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Suitable for</label>
+        <select name="audience">
+          <% C.AUDIENCES.forEach(function(a){ %>
+            <option value="<%= a.value %>" <%= editing && listing.audience === a.value ? 'selected' : '' %>><%= a.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Visibility</label>
+        <select name="status">
+          <option value="active" <%= editing && listing.status === 'active' ? 'selected' : '' %>>Active (public)</option>
+          <option value="hidden" <%= editing && listing.status === 'hidden' ? 'selected' : '' %>>Hidden</option>
+        </select>
+      </div>
+
+      <div class="field span-2">
+        <label>Description</label>
+        <textarea name="description" rows="4" placeholder="Describe the bed/room, the compound, the neighborhood, house rules…"><%= editing ? listing.description : '' %></textarea>
+      </div>
+
+      <div class="field">
+        <label>Host name</label>
+        <input type="text" name="ownerName" value="<%= editing ? listing.ownerName : '' %>" />
+      </div>
+      <div class="field">
+        <label>Host phone (private)</label>
+        <input type="text" name="ownerPhone" value="<%= editing ? listing.ownerPhone : '' %>" />
+      </div>
+    </div>
+
+    <fieldset class="amenity-fieldset">
+      <legend>Amenities</legend>
+      <% C.AMENITIES.forEach(function(am){ %>
+        <label class="check"><input type="checkbox" name="<%= am.key %>" <%= editing && listing[am.key] ? 'checked' : '' %>> <%= am.label %></label>
+      <% }) %>
+    </fieldset>
+
+    <fieldset class="amenity-fieldset">
+      <legend>Trust</legend>
+      <label class="check"><input type="checkbox" name="verified" <%= editing && listing.verified ? 'checked' : '' %>> ✅ Verified by Alga</label>
+      <label class="check"><input type="checkbox" name="featured" <%= editing && listing.featured ? 'checked' : '' %>> ★ Featured (top of search)</label>
+    </fieldset>
+
+    <fieldset class="photo-fieldset">
+      <legend>Photos</legend>
+      <p class="muted">Add photos for each part of the place. Guests trust listings with real photos.</p>
+      <div class="photo-grid">
+        <% C.PHOTO_CATEGORIES.forEach(function(cat){
+             var label = cat.charAt(0).toUpperCase() + cat.slice(1);
+             var imgs = editing && listing.photos && listing.photos[cat] ? listing.photos[cat] : [];
+        %>
+          <div class="photo-cat">
+            <label><%= label %></label>
+            <input type="file" name="photo_<%= cat %>" accept="image/*" multiple />
+            <% if (imgs.length) { %>
+              <div class="existing-photos">
+                <% imgs.forEach(function(src){ %>
+                  <div class="existing-photo">
+                    <img src="<%= src %>" alt="" />
+                    <% if (editing) { %>
+                    <form action="/admin/listings/<%= listing.id %>/photo/delete" method="POST">
+                      <input type="hidden" name="category" value="<%= cat %>" />
+                      <input type="hidden" name="url" value="<%= src %>" />
+                      <button type="submit" class="photo-del" title="Remove">×</button>
+                    </form>
+                    <% } %>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+    </fieldset>
+
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary"><%= editing ? 'Save changes' : 'Create listing' %></button>
+      <a href="/admin/listings" class="btn btn-ghost">Cancel</a>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>
