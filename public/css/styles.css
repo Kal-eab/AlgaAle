@@ -56,11 +56,11 @@ img { max-width: 100%; display: block; }
   background: #fff; border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 50;
 }
-.header-inner { display: flex; align-items: center; justify-content: space-between; height: 66px; }
+.header-inner { display: flex; align-items: center; justify-content: space-between; height: 96px; }
 .brand { display: inline-flex; align-items: center; }
 .brand:hover { text-decoration: none; }
-.brand-logo { height: 44px; width: auto; display: block; }
-.brand-logo-footer { height: 36px; filter: brightness(0) invert(1); }
+.brand-logo { height: 76px; width: auto; display: block; }
+.brand-footer { color: #fff; font-weight: 800; font-size: 1.5rem; letter-spacing: -.01em; }
 .main-nav { display: flex; align-items: center; gap: 18px; }
 .main-nav a { color: var(--body); font-weight: 600; }
 
@@ -98,7 +98,7 @@ img { max-width: 100%; display: block; }
 .browse-layout { display: grid; grid-template-columns: 260px 1fr; gap: 28px; padding: 34px 20px 60px; }
 .filters {
   background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
-  padding: 20px; align-self: start; position: sticky; top: 86px;
+  padding: 20px; align-self: start; position: sticky; top: 116px;
 }
 .filters h3 { margin: 0 0 14px; }
 .filters label { display: block; font-weight: 600; font-size: .85rem; color: var(--ink); margin: 14px 0 6px; }
@@ -178,7 +178,7 @@ img { max-width: 100%; display: block; }
 }
 .review-form input { flex: 1; }
 
-.listing-side { align-self: start; position: sticky; top: 86px; }
+.listing-side { align-self: start; position: sticky; top: 116px; }
 .booking-box h3 { margin-top: 0; }
 .host-box p { margin: 6px 0; }
 
