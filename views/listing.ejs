@@ -1,4 +1,4 @@
-<%- include('partials/header', { title: listing.title + ' — Alga' }) %>
+<%- include('partials/header', { title: listing.title + ' — AlgaAle' }) %>
 
 <div class="container listing-page">
   <a href="/" class="back-link">← Back to results</a>
@@ -7,7 +7,7 @@
     <div>
       <div class="listing-badges">
         <% if (listing.featured) { %><span class="badge badge-featured">★ Featured</span><% } %>
-        <% if (listing.verified) { %><span class="badge badge-verified">✅ Verified by Alga</span><% } %>
+        <% if (listing.verified) { %><span class="badge badge-verified">✅ Verified by AlgaAle</span><% } %>
         <span class="badge badge-type"><%= C.typeLabel(listing.type) %></span>
       </div>
       <h1><%= listing.title %></h1>
@@ -94,7 +94,7 @@
     <aside class="listing-side">
       <div class="panel booking-box">
         <h3>Request to book</h3>
-        <p class="muted">Chat through Alga first — no phone numbers shared until the host accepts. Safer for everyone.</p>
+        <p class="muted">Chat through AlgaAle first — no phone numbers shared until the host accepts. Safer for everyone.</p>
         <form action="/listing/<%= listing.id %>/book" method="POST">
           <input type="text" name="name" placeholder="Your full name" required />
           <input type="tel" name="phone" placeholder="Your phone number" required />
@@ -106,7 +106,7 @@
 
       <div class="panel host-box">
         <h4>Hosted by</h4>
-        <p><strong><%= listing.ownerName || 'Alga host' %></strong></p>
+        <p><strong><%= listing.ownerName || 'AlgaAle host' %></strong></p>
         <p class="muted">Contact details are shared after your request is accepted.</p>
       </div>
     </aside>

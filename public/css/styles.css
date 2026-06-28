@@ -57,9 +57,10 @@ img { max-width: 100%; display: block; }
   position: sticky; top: 0; z-index: 50;
 }
 .header-inner { display: flex; align-items: center; justify-content: space-between; height: 66px; }
-.brand { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; font-size: 1.35rem; color: var(--teal); }
+.brand { display: inline-flex; align-items: center; }
 .brand:hover { text-decoration: none; }
-.brand-mark { font-size: 1.3rem; }
+.brand-logo { height: 44px; width: auto; display: block; }
+.brand-logo-footer { height: 36px; filter: brightness(0) invert(1); }
 .main-nav { display: flex; align-items: center; gap: 18px; }
 .main-nav a { color: var(--body); font-weight: 600; }
 

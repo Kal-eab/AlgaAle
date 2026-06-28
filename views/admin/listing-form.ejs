@@ -1,5 +1,5 @@
 <% var editing = !!listing; %>
-<%- include('../partials/header', { title: (editing ? 'Edit' : 'New') + ' listing — Alga Admin' }) %>
+<%- include('../partials/header', { title: (editing ? 'Edit' : 'New') + ' listing — AlgaAle Admin' }) %>
 
 <div class="container admin">
   <div class="admin-head">
@@ -87,7 +87,7 @@
 
     <fieldset class="amenity-fieldset">
       <legend>Trust</legend>
-      <label class="check"><input type="checkbox" name="verified" <%= editing && listing.verified ? 'checked' : '' %>> ✅ Verified by Alga</label>
+      <label class="check"><input type="checkbox" name="verified" <%= editing && listing.verified ? 'checked' : '' %>> ✅ Verified by AlgaAle</label>
       <label class="check"><input type="checkbox" name="featured" <%= editing && listing.featured ? 'checked' : '' %>> ★ Featured (top of search)</label>
     </fieldset>
 
