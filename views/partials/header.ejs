@@ -17,13 +17,40 @@
     </a>
     <nav class="main-nav">
       <a href="/">Browse</a>
-      <% if (user) { %>
-        <a href="/admin">Dashboard</a>
+
+      <% if (!user) { %>
+        <a href="/register" class="btn btn-ghost btn-sm">Register</a>
+        <a href="/login" class="btn btn-primary btn-sm">Log in</a>
+
+      <% } else if (user.role === 'seeker') { %>
+        <span style="color:var(--body);font-size:.9rem;">Hi, <%= user.fullName.split(' ')[0] %></span>
+        <% if (user.providerAppStatus === 'pending') { %>
+          <span class="btn btn-ghost btn-sm" style="opacity:.6;cursor:default;">Application pending</span>
+        <% } else { %>
+          <a href="/become-provider" class="btn btn-ghost btn-sm">List your home</a>
+        <% } %>
+        <form action="/logout" method="POST" class="inline-form">
+          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+        </form>
+
+      <% } else if (user.role === 'provider') { %>
+        <span style="color:var(--body);font-size:.9rem;">Hi, <%= user.fullName.split(' ')[0] %></span>
+        <a href="/provider" class="btn btn-ghost btn-sm">My listings</a>
+        <form action="/logout" method="POST" class="inline-form">
+          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+        </form>
+
+      <% } else if (user.role === 'owner') { %>
+        <a href="/admin" class="btn btn-primary btn-sm">Owner panel</a>
+        <form action="/logout" method="POST" class="inline-form">
+          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
+        </form>
+
+      <% } else if (user.role === 'admin') { %>
+        <a href="/admin" class="btn btn-ghost btn-sm">Dashboard</a>
         <form action="/admin/logout" method="POST" class="inline-form">
           <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
         </form>
-      <% } else { %>
-        <a href="/admin/login" class="btn btn-primary btn-sm">Host / Admin login</a>
       <% } %>
     </nav>
   </div>

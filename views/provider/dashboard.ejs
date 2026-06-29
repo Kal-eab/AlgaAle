@@ -1,0 +1,58 @@
+<%- include('../partials/header', { title: 'My listings — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>My listings</h1>
+      <p class="muted" style="margin:4px 0 0;">Manage the homes and rooms you've listed on AlgaAle.</p>
+    </div>
+    <a href="/provider/listings/new" class="btn btn-primary">+ Add a listing</a>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/" class="btn btn-ghost">← Browse listings</a>
+  </div>
+
+  <% if (listings.length === 0) { %>
+    <div class="empty">
+      <p>You haven't listed anything yet.</p>
+      <a href="/provider/listings/new" class="btn btn-primary">Add your first listing</a>
+    </div>
+  <% } else { %>
+  <table class="table">
+    <thead>
+      <tr><th></th><th>Listing</th><th>Area</th><th>Price</th><th>Status</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      <% listings.forEach(function(l){ %>
+        <tr>
+          <td class="thumb-cell">
+            <img src="<%= firstPhoto(l) || ('/placeholder.svg?text=' + encodeURIComponent(C.typeLabel(l.type))) %>" alt="" />
+          </td>
+          <td>
+            <a href="/listing/<%= l.id %>" class="row-title"><%= l.title %></a>
+            <div class="muted"><%= C.typeLabel(l.type) %> · <%= C.audienceLabel(l.audience) %></div>
+          </td>
+          <td><%= l.area %></td>
+          <td><%= money(l.price) %> birr<br><span class="muted">/ <%= C.periodLabel(l.period).toLowerCase() %></span></td>
+          <td>
+            <div class="status-pills">
+              <% if (l.verified) { %><span class="pill pill-verified">✅ Verified</span><% } %>
+              <% if (l.featured) { %><span class="pill pill-featured">★ Featured</span><% } %>
+              <span class="pill pill-<%= l.status === 'hidden' ? 'hidden' : 'active' %>"><%= l.status === 'hidden' ? 'Hidden' : 'Active' %></span>
+            </div>
+          </td>
+          <td class="actions-cell">
+            <a href="/provider/listings/<%= l.id %>/edit" class="btn btn-sm btn-ghost">Edit</a>
+            <form action="/provider/listings/<%= l.id %>/delete" method="POST" class="inline-form" onsubmit="return confirm('Delete this listing?')">
+              <button class="btn btn-sm btn-danger">Delete</button>
+            </form>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

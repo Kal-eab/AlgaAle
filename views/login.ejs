@@ -1,0 +1,27 @@
+<%- include('partials/header', { title: 'Log in — AlgaAle' }) %>
+
+<div class="container auth-wrap">
+  <div class="auth-card">
+    <a href="/" style="font-size:.85rem;color:var(--muted);display:block;margin-bottom:16px;">← Back to AlgaAle</a>
+    <h1>Log in</h1>
+    <p class="muted">Welcome back. Enter your phone number or email.</p>
+
+    <form action="/login" method="POST">
+      <input type="hidden" name="next" value="<%= next %>" />
+
+      <label>Phone number or email</label>
+      <input type="text" name="identifier" placeholder="+251 9X XXX XXXX or you@example.com" required autofocus />
+
+      <label>Password</label>
+      <input type="password" name="password" placeholder="••••••••" required />
+
+      <button type="submit" class="btn btn-primary btn-block" style="margin-top:18px;">Log in</button>
+    </form>
+
+    <p class="muted" style="text-align:center;margin-top:18px;font-size:.88rem;">
+      Don't have an account? <a href="/register<%= next ? '?next=' + encodeURIComponent(next) : '' %>">Create one free</a>
+    </p>
+  </div>
+</div>
+
+<%- include('partials/footer') %>

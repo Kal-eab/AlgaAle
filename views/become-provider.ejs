@@ -1,0 +1,27 @@
+<%- include('partials/header', { title: 'Become a provider — AlgaAle' }) %>
+
+<div class="container" style="max-width:680px;padding:40px 20px 80px;">
+  <a href="/" style="font-size:.85rem;color:var(--muted);display:block;margin-bottom:24px;">← Back to listings</a>
+  <h1 style="margin:0 0 8px;">List your home on AlgaAle</h1>
+  <p class="muted" style="margin:0 0 32px;">Reach thousands of seekers in Addis Ababa. Quick verification, no brokers.</p>
+
+  <% if (application.status === 'pending') { %>
+    <div class="panel" style="text-align:center;padding:40px 30px;">
+      <div style="font-size:2.5rem;margin-bottom:12px;">⏳</div>
+      <h2 style="margin:0 0 10px;">Application under review</h2>
+      <p class="muted">We received your ID and are reviewing your application. This usually takes 1–2 business days. We'll notify you once approved.</p>
+      <p class="muted" style="margin-top:14px;font-size:.85rem;">
+        Submitted ID: <strong><%= application.idType %></strong> ending in …<%= (application.idNumber || '').slice(-4) %>
+      </p>
+    </div>
+
+  <% } else if (application.status === 'rejected') { %>
+    <div class="alert alert-error">Your previous application was not approved. You may re-apply with updated information.</div>
+    <%- include('partials/_provider-form', { application }) %>
+
+  <% } else { %>
+    <%- include('partials/_provider-form', { application }) %>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

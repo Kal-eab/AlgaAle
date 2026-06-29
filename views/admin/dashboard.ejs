@@ -13,6 +13,8 @@
     <div class="stat"><div class="stat-num"><%= stats.bookings %></div><div class="stat-label">Bookings</div></div>
     <div class="stat highlight"><div class="stat-num"><%= stats.pending %></div><div class="stat-label">Pending requests</div></div>
     <div class="stat"><div class="stat-num"><%= stats.reviews %></div><div class="stat-label">Reviews</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.users %></div><div class="stat-label">Registered users</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.providers %></div><div class="stat-label">Approved providers</div></div>
   </div>
 
   <div class="admin-nav">
@@ -20,6 +22,55 @@
     <a href="/admin/bookings" class="btn btn-ghost">Booking requests</a>
     <a href="/" class="btn btn-ghost">View public site</a>
   </div>
+
+  <% if (user.role === 'owner' && pendingApplications.length > 0) { %>
+  <section class="panel" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;display:flex;align-items:center;gap:10px;">
+      Provider applications
+      <span class="pill pill-pending" style="font-size:.78rem;"><%= pendingApplications.length %> pending</span>
+    </h3>
+    <table class="table">
+      <thead>
+        <tr><th>Applicant</th><th>ID type</th><th>ID number</th><th>ID photo</th><th>Submitted</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <% pendingApplications.forEach(function(u){ %>
+          <tr>
+            <td>
+              <strong><%= u.fullName %></strong><br>
+              <span class="muted"><%= u.phone || '' %></span>
+            </td>
+            <td><%= u.providerApplication.idType || '—' %></td>
+            <td><%= u.providerApplication.idNumber || '—' %></td>
+            <td>
+              <% if (u.providerApplication.idImage) { %>
+                <a href="<%= u.providerApplication.idImage %>" target="_blank" class="btn btn-sm btn-ghost">View</a>
+              <% } else { %>
+                <span class="muted">None</span>
+              <% } %>
+            </td>
+            <td class="muted" style="font-size:.82rem;">
+              <%= u.providerApplication.submittedAt ? new Date(u.providerApplication.submittedAt).toLocaleDateString() : '—' %>
+            </td>
+            <td class="actions-cell">
+              <form action="/owner/applications/<%= u.id %>/approve" method="POST" class="inline-form">
+                <button class="btn btn-sm btn-primary">Approve</button>
+              </form>
+              <form action="/owner/applications/<%= u.id %>/reject" method="POST" class="inline-form" onsubmit="return confirm('Reject this application?')">
+                <button class="btn btn-sm btn-danger">Reject</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+  <% } else if (user.role === 'owner') { %>
+  <section class="panel" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Provider applications</h3>
+    <p class="muted">No pending applications right now.</p>
+  </section>
+  <% } %>
 
   <section class="panel">
     <h3>Recent booking requests</h3>

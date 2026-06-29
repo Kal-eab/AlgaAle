@@ -1,0 +1,33 @@
+<div class="panel">
+  <h3 style="margin-top:0;">Your identity verification</h3>
+  <p class="muted" style="margin-bottom:20px;">We verify every host to keep AlgaAle safe. Your ID is never shown to seekers.</p>
+
+  <form action="/become-provider" method="POST" enctype="multipart/form-data">
+    <div class="field" style="margin-bottom:14px;">
+      <label style="font-weight:600;font-size:.85rem;color:var(--ink);display:block;margin-bottom:6px;">ID type *</label>
+      <select name="idType" required style="width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:.92rem;">
+        <option value="">Select…</option>
+        <option value="passport" <%= application.idType === 'passport' ? 'selected' : '' %>>Passport</option>
+        <option value="national_id" <%= application.idType === 'national_id' ? 'selected' : '' %>>Ethiopian National ID (Fayda)</option>
+        <option value="drivers_license" <%= application.idType === 'drivers_license' ? 'selected' : '' %>>Driver's licence</option>
+        <option value="kebele_id" <%= application.idType === 'kebele_id' ? 'selected' : '' %>>Kebele ID</option>
+      </select>
+    </div>
+
+    <div class="field" style="margin-bottom:14px;">
+      <label style="font-weight:600;font-size:.85rem;color:var(--ink);display:block;margin-bottom:6px;">ID number *</label>
+      <input type="text" name="idNumber" value="<%= application.idNumber || '' %>" placeholder="As printed on your ID" required
+        style="width:100%;border:1px solid var(--line);border-radius:9px;padding:10px 12px;font-size:.92rem;" />
+    </div>
+
+    <div class="field" style="margin-bottom:22px;">
+      <label style="font-weight:600;font-size:.85rem;color:var(--ink);display:block;margin-bottom:6px;">Photo of your ID <span style="font-weight:400;color:var(--muted)">(optional but speeds up review)</span></label>
+      <input type="file" name="idImage" accept="image/*" style="font-size:.88rem;" />
+      <% if (application.idImage) { %>
+        <p class="muted" style="font-size:.8rem;margin-top:6px;">Previously uploaded: <a href="<%= application.idImage %>" target="_blank">view file</a></p>
+      <% } %>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Submit application</button>
+  </form>
+</div>
