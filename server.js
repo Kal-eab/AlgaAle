@@ -62,11 +62,13 @@ cloudinary.config({
 });
 
 const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: 'algaale',
-    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
-    transformation: [{ width: 1200, crop: 'limit' }]
+  cloudinary: cloudinary,
+  params: async (req, file) => {
+    return {
+      folder: 'algaale',
+      allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+      transformation: [{ width: 1200, crop: 'limit' }]
+    };
   }
 });
 const upload = multer({
