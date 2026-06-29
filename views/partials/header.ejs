@@ -55,8 +55,22 @@
               <% } %>
             <% } else if (user.role === 'provider') { %>
               <a href="/provider" class="profile-dropdown-item">My listings</a>
-            <% } else if (user.role === 'owner' || user.role === 'admin') { %>
-              <a href="/admin" class="profile-dropdown-item">Owner panel</a>
+            <% } else if (user.role === 'owner') { %>
+              <div class="owner-nav-menu">
+                <button class="profile-dropdown-item owner-nav-trigger" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
+                  Owner panel
+                  <svg width="10" height="10" viewBox="0 0 12 12" fill="none" style="opacity:.4"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </button>
+                <div class="owner-nav-submenu">
+                  <a href="/admin"               class="profile-dropdown-item" style="padding-left:1.5rem;">Dashboard</a>
+                  <a href="/owner/members"        class="profile-dropdown-item" style="padding-left:1.5rem;">Members</a>
+                  <a href="/owner/applications"   class="profile-dropdown-item" style="padding-left:1.5rem;">Applications</a>
+                  <a href="/owner/listings"       class="profile-dropdown-item" style="padding-left:1.5rem;">All listings</a>
+                  <a href="/admin/bookings"        class="profile-dropdown-item" style="padding-left:1.5rem;">Bookings</a>
+                </div>
+              </div>
+            <% } else if (user.role === 'admin') { %>
+              <a href="/admin" class="profile-dropdown-item">Admin panel</a>
             <% } %>
 
             <div class="profile-dropdown-divider"></div>

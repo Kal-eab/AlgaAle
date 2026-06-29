@@ -1,0 +1,97 @@
+<%- include('../partials/header', { title: 'All Listings — AlgaAle Owner' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>All Listings</h1>
+      <p class="muted" style="margin:0;"><%= listings.length %> listing<%= listings.length !== 1 ? 's' : '' %></p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <form method="GET" action="/owner/listings" style="display:flex;gap:6px;">
+        <input type="text" name="q" value="<%= q %>" placeholder="Search title, area, host…"
+               class="input" style="min-width:220px;" />
+        <button type="submit" class="btn btn-primary btn-sm">Search</button>
+        <% if (q) { %><a href="/owner/listings" class="btn btn-ghost btn-sm">Clear</a><% } %>
+      </form>
+      <a href="/admin/listings/new" class="btn btn-primary">+ New listing</a>
+    </div>
+  </div>
+
+  <div class="admin-nav" style="margin-bottom:24px;">
+    <a href="/admin" class="btn btn-ghost">Dashboard</a>
+    <a href="/owner/members" class="btn btn-ghost">Members</a>
+    <a href="/owner/applications" class="btn btn-ghost">Applications</a>
+  </div>
+
+  <section class="panel">
+    <% if (listings.length === 0) { %>
+      <p class="muted"><%= q ? 'No listings match your search.' : 'No listings yet.' %></p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Photo</th>
+            <th>Title</th>
+            <th>Area / Type</th>
+            <th>Price</th>
+            <th>Host</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% listings.forEach(function(l) { %>
+            <tr>
+              <td style="width:64px;">
+                <% const photo = firstPhoto(l); %>
+                <% if (photo) { %>
+                  <img src="<%= photo %>" alt="" style="width:56px;height:44px;object-fit:cover;border-radius:6px;" />
+                <% } else { %>
+                  <div style="width:56px;height:44px;border-radius:6px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;">
+                    <span style="font-size:.7rem;color:#9ca3af;">No photo</span>
+                  </div>
+                <% } %>
+              </td>
+              <td>
+                <a href="/listing/<%= l.id %>" target="_blank" style="font-weight:600;text-decoration:none;color:inherit;"><%= l.title %></a>
+                <div style="margin-top:2px;">
+                  <% if (l.verified) { %><span class="pill pill-verified" style="font-size:.7rem;">Verified</span><% } %>
+                  <% if (l.featured) { %><span class="pill pill-featured" style="font-size:.7rem;">Featured</span><% } %>
+                </div>
+              </td>
+              <td class="muted" style="font-size:.85rem;"><%= l.area %><br><%= C.LISTING_TYPES[l.type] || l.type %></td>
+              <td style="white-space:nowrap;">ETB <%= money(l.price) %><br><span class="muted" style="font-size:.78rem;">/<%= l.period %></span></td>
+              <td style="font-size:.85rem;">
+                <% if (l.ownerId && userMap[l.ownerId]) { %>
+                  <strong><%= userMap[l.ownerId].fullName %></strong><br>
+                  <span class="muted"><%= userMap[l.ownerId].phone || '' %></span>
+                <% } else if (l.ownerName) { %>
+                  <%= l.ownerName %><br>
+                  <span class="muted"><%= l.ownerPhone || '' %></span>
+                <% } else { %>
+                  <span class="muted">—</span>
+                <% } %>
+              </td>
+              <td>
+                <span class="pill pill-<%= l.status %>"><%= l.status %></span>
+              </td>
+              <td class="actions-cell">
+                <a href="/admin/listings/<%= l.id %>/edit" class="btn btn-sm btn-ghost">Edit</a>
+                <form action="/admin/listings/<%= l.id %>/toggle" method="POST" class="inline-form">
+                  <input type="hidden" name="field" value="status" />
+                  <button class="btn btn-sm btn-ghost"><%= l.status === 'hidden' ? 'Show' : 'Hide' %></button>
+                </form>
+                <form action="/admin/listings/<%= l.id %>/delete" method="POST" class="inline-form"
+                      onsubmit="return confirm('Delete this listing permanently?')">
+                  <button class="btn btn-sm btn-danger">Delete</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

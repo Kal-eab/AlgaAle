@@ -1,0 +1,85 @@
+<%- include('../partials/header', { title: 'Members — AlgaAle Owner' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Members</h1>
+      <p class="muted" style="margin:0;">All registered users on AlgaAle</p>
+    </div>
+    <div style="display:flex;gap:10px;align-items:center;">
+      <form method="GET" action="/owner/members" style="display:flex;gap:6px;">
+        <input type="text" name="q" value="<%= q %>" placeholder="Search by name, phone, email…"
+               class="input" style="min-width:220px;" />
+        <button type="submit" class="btn btn-primary btn-sm">Search</button>
+        <% if (q) { %><a href="/owner/members" class="btn btn-ghost btn-sm">Clear</a><% } %>
+      </form>
+    </div>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:28px;">
+    <div class="stat"><div class="stat-num"><%= stats.total %></div><div class="stat-label">Total members</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.seekers %></div><div class="stat-label">Seekers</div></div>
+    <div class="stat highlight"><div class="stat-num"><%= stats.providers %></div><div class="stat-label">Providers</div></div>
+    <div class="stat"><div class="stat-num"><%= stats.pending %></div><div class="stat-label">Pending applications</div></div>
+  </div>
+
+  <div class="admin-nav" style="margin-bottom:24px;">
+    <a href="/admin" class="btn btn-ghost">Dashboard</a>
+    <a href="/owner/applications" class="btn btn-ghost">Applications</a>
+    <a href="/owner/listings" class="btn btn-ghost">All listings</a>
+  </div>
+
+  <section class="panel">
+    <% if (members.length === 0) { %>
+      <p class="muted"><%= q ? 'No members match your search.' : 'No members yet.' %></p>
+    <% } else { %>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Provider status</th>
+            <th>Joined</th>
+          </tr>
+        </thead>
+        <tbody>
+          <% members.forEach(function(u) { %>
+            <tr>
+              <td><strong><%= u.fullName %></strong></td>
+              <td><%= u.phone || '—' %></td>
+              <td class="muted" style="font-size:.82rem;"><%= u.email || '—' %></td>
+              <td>
+                <% if (u.role === 'owner') { %>
+                  <span class="pill pill-featured">Owner</span>
+                <% } else if (u.role === 'provider') { %>
+                  <span class="pill pill-verified">Provider</span>
+                <% } else { %>
+                  <span class="pill pill-active">Seeker</span>
+                <% } %>
+              </td>
+              <td>
+                <% const st = u.providerApplication ? u.providerApplication.status : 'none'; %>
+                <% if (st === 'pending') { %>
+                  <span class="pill pill-pending">Pending</span>
+                <% } else if (st === 'approved') { %>
+                  <span class="pill pill-verified">Approved</span>
+                <% } else if (st === 'rejected') { %>
+                  <span class="pill" style="background:#fee2e2;color:#991b1b;">Rejected</span>
+                <% } else { %>
+                  <span class="muted" style="font-size:.8rem;">—</span>
+                <% } %>
+              </td>
+              <td class="muted" style="font-size:.82rem;">
+                <%= u.createdAt ? new Date(u.createdAt).toLocaleDateString() : '—' %>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

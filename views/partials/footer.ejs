@@ -37,6 +37,15 @@
       menu.classList.remove('open');
     });
   }
+
+  // Owner panel submenu toggle (nested inside profile dropdown)
+  const ownerNav = document.querySelector('.owner-nav-menu');
+  if (ownerNav) {
+    ownerNav.querySelector('.owner-nav-trigger').addEventListener('click', function(e) {
+      e.stopPropagation();
+      ownerNav.classList.toggle('open');
+    });
+  }
 </script>
 </body>
 </html>

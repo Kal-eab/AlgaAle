@@ -1,0 +1,123 @@
+<%- include('../partials/header', { title: 'Provider Applications — AlgaAle Owner' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Provider Applications</h1>
+      <p class="muted" style="margin:0;">Review ID submissions and grant provider access</p>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <a href="/owner/members" class="btn btn-ghost">Members</a>
+      <a href="/admin" class="btn btn-ghost">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="stat-grid" style="margin-bottom:28px;">
+    <div class="stat highlight"><div class="stat-num"><%= pending.length %></div><div class="stat-label">Pending</div></div>
+    <div class="stat"><div class="stat-num"><%= approved.length %></div><div class="stat-label">Approved</div></div>
+    <div class="stat"><div class="stat-num"><%= rejected.length %></div><div class="stat-label">Rejected</div></div>
+  </div>
+
+  <% if (pending.length > 0) { %>
+  <section class="panel" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;display:flex;align-items:center;gap:10px;">
+      Pending
+      <span class="pill pill-pending" style="font-size:.78rem;"><%= pending.length %></span>
+    </h3>
+    <table class="table">
+      <thead>
+        <tr><th>Applicant</th><th>ID type</th><th>ID number</th><th>ID photo</th><th>Submitted</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <% pending.forEach(function(u) { %>
+          <tr>
+            <td>
+              <strong><%= u.fullName %></strong><br>
+              <span class="muted" style="font-size:.82rem;"><%= u.phone || u.email || '' %></span>
+            </td>
+            <td><%= u.providerApplication.idType || '—' %></td>
+            <td><%= u.providerApplication.idNumber || '—' %></td>
+            <td>
+              <% if (u.providerApplication.idImage) { %>
+                <a href="<%= u.providerApplication.idImage %>" target="_blank" class="btn btn-sm btn-ghost">View</a>
+              <% } else { %>
+                <span class="muted">None</span>
+              <% } %>
+            </td>
+            <td class="muted" style="font-size:.82rem;">
+              <%= u.providerApplication.submittedAt ? new Date(u.providerApplication.submittedAt).toLocaleDateString() : '—' %>
+            </td>
+            <td class="actions-cell">
+              <form action="/owner/applications/<%= u.id %>/approve" method="POST" class="inline-form">
+                <button class="btn btn-sm btn-primary">Approve</button>
+              </form>
+              <form action="/owner/applications/<%= u.id %>/reject" method="POST" class="inline-form"
+                    onsubmit="return confirm('Reject this application?')">
+                <button class="btn btn-sm btn-danger">Reject</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+  <% } else { %>
+  <section class="panel" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Pending applications</h3>
+    <p class="muted">No pending applications right now.</p>
+  </section>
+  <% } %>
+
+  <% if (approved.length > 0) { %>
+  <section class="panel" style="margin-bottom:28px;">
+    <h3 style="margin-top:0;">Approved</h3>
+    <table class="table">
+      <thead>
+        <tr><th>Provider</th><th>Phone</th><th>ID type</th><th>Approved on</th></tr>
+      </thead>
+      <tbody>
+        <% approved.forEach(function(u) { %>
+          <tr>
+            <td><strong><%= u.fullName %></strong></td>
+            <td><%= u.phone || '—' %></td>
+            <td><%= u.providerApplication.idType || '—' %></td>
+            <td class="muted" style="font-size:.82rem;">
+              <%= u.providerApplication.reviewedAt ? new Date(u.providerApplication.reviewedAt).toLocaleDateString() : '—' %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+  <% } %>
+
+  <% if (rejected.length > 0) { %>
+  <section class="panel">
+    <h3 style="margin-top:0;">Rejected</h3>
+    <table class="table">
+      <thead>
+        <tr><th>Applicant</th><th>Phone</th><th>ID type</th><th>Rejected on</th><th>Actions</th></tr>
+      </thead>
+      <tbody>
+        <% rejected.forEach(function(u) { %>
+          <tr>
+            <td><strong><%= u.fullName %></strong></td>
+            <td><%= u.phone || '—' %></td>
+            <td><%= u.providerApplication.idType || '—' %></td>
+            <td class="muted" style="font-size:.82rem;">
+              <%= u.providerApplication.reviewedAt ? new Date(u.providerApplication.reviewedAt).toLocaleDateString() : '—' %>
+            </td>
+            <td>
+              <form action="/owner/applications/<%= u.id %>/approve" method="POST" class="inline-form">
+                <button class="btn btn-sm btn-ghost">Re-approve</button>
+              </form>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </section>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

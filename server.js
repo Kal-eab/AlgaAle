@@ -1,22 +1,24 @@
-const path = require('path');
-const fs = require('fs');
+'use strict';
+const path    = require('path');
+const fs      = require('fs');
 const express = require('express');
 const session = require('express-session');
-const flash = require('connect-flash');
-const multer = require('multer');
-const bcrypt = require('bcryptjs');
+const flash   = require('connect-flash');
+const multer  = require('multer');
+const bcrypt  = require('bcryptjs');
 const { nanoid } = require('nanoid');
 
-const db = require('./lib/db');
-const seed = require('./lib/seed');
-const C = require('./lib/constants');
+const store  = require('./lib/store');
+const seed   = require('./lib/seed');
+const C      = require('./lib/constants');
 const { UPLOAD_DIR } = require('./lib/paths');
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+const app   = express();
+const PORT  = process.env.PORT || 3000;
 const OWNER_EMAIL = 'genkaleab@gmail.com';
 
-seed.run();
+// Wrap async route handlers — prevents unhandled-promise crashes
+const wrap = fn => (req, res, next) => fn(req, res, next).catch(next);
 
 // ---------------------------------------------------------------------------
 // View engine & middleware
@@ -30,24 +32,19 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.set('trust proxy', 1);
 
-app.use(
-  session({
-    secret: process.env.SESSION_SECRET || 'alga-dev-secret-change-me',
-    resave: false,
-    saveUninitialized: false,
-    cookie: { maxAge: 1000 * 60 * 60 * 8 }
-  })
-);
+app.use(session({
+  secret: process.env.SESSION_SECRET || 'alga-dev-secret-change-me',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { maxAge: 1000 * 60 * 60 * 8 }
+}));
 app.use(flash());
 
 app.use((req, res, next) => {
-  res.locals.C = C;
-  res.locals.user = req.session.user || null;
-  res.locals.flash = {
-    success: req.flash('success'),
-    error: req.flash('error')
-  };
-  res.locals.path = req.path;
+  res.locals.C     = C;
+  res.locals.user  = req.session.user || null;
+  res.locals.flash = { success: req.flash('success'), error: req.flash('error') };
+  res.locals.path  = req.path;
   res.locals.money = (n) => Number(n).toLocaleString('en-US');
   next();
 });
@@ -57,7 +54,7 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename: (req, file, cb) => {
+  filename:    (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
     cb(null, `${Date.now()}-${nanoid(6)}${ext}`);
   }
@@ -124,16 +121,12 @@ function sessionUser(user) {
   };
 }
 
-function getListing(id) {
-  return db.read().listings.find((l) => l.id === id);
-}
-
 function parseAmenities(body) {
   return {
     furnished: body.furnished === 'on' || body.furnished === 'true',
-    wifi: body.wifi === 'on' || body.wifi === 'true',
-    water: body.water === 'on' || body.water === 'true',
-    parking: body.parking === 'on' || body.parking === 'true'
+    wifi:      body.wifi      === 'on' || body.wifi      === 'true',
+    water:     body.water     === 'on' || body.water     === 'true',
+    parking:   body.parking   === 'on' || body.parking   === 'true'
   };
 }
 
@@ -142,9 +135,7 @@ function collectUploadedPhotos(files, existing) {
   C.PHOTO_CATEGORIES.forEach((cat) => {
     if (!photos[cat]) photos[cat] = [];
     const f = files && files[`photo_${cat}`];
-    if (f && f.length) {
-      f.forEach((file) => photos[cat].push('/uploads/' + file.filename));
-    }
+    if (f && f.length) f.forEach((file) => photos[cat].push('/uploads/' + file.filename));
   });
   return photos;
 }
@@ -157,26 +148,24 @@ function listingFirstPhoto(l) {
 }
 
 // ===========================================================================
-// PUBLIC: HOME — visible to everyone
+// PUBLIC: HOME
 // ===========================================================================
-app.get('/', (req, res) => {
-  const data = db.read();
+app.get('/', wrap(async (req, res) => {
   const f = req.query;
-
-  let listings = data.listings.filter((l) => l.status !== 'hidden');
+  let listings = await store.getListings();
+  listings = listings.filter((l) => l.status !== 'hidden');
 
   if (f.q) {
     const q = f.q.toLowerCase();
-    listings = listings.filter(
-      (l) =>
-        l.title.toLowerCase().includes(q) ||
-        (l.description || '').toLowerCase().includes(q) ||
-        l.area.toLowerCase().includes(q)
+    listings = listings.filter((l) =>
+      l.title.toLowerCase().includes(q) ||
+      (l.description || '').toLowerCase().includes(q) ||
+      l.area.toLowerCase().includes(q)
     );
   }
-  if (f.area) listings = listings.filter((l) => l.area === f.area);
-  if (f.type) listings = listings.filter((l) => l.type === f.type);
-  if (f.period) listings = listings.filter((l) => l.period === f.period);
+  if (f.area)     listings = listings.filter((l) => l.area     === f.area);
+  if (f.type)     listings = listings.filter((l) => l.type     === f.type);
+  if (f.period)   listings = listings.filter((l) => l.period   === f.period);
   if (f.audience) listings = listings.filter((l) => l.audience === f.audience);
   if (f.maxPrice) listings = listings.filter((l) => Number(l.price) <= Number(f.maxPrice));
   ['furnished', 'wifi', 'water', 'parking'].forEach((a) => {
@@ -190,43 +179,36 @@ app.get('/', (req, res) => {
     return b.createdAt - a.createdAt;
   });
 
-  const reviewCounts = {};
-  data.reviews.forEach((r) => {
-    reviewCounts[r.listingId] = (reviewCounts[r.listingId] || 0) + 1;
-  });
+  const reviewCounts = await store.getReviewCountsByListing();
+  const all = await store.getListings();
 
   res.render('index', {
     listings,
     filters: f,
     firstPhoto: listingFirstPhoto,
     reviewCounts,
-    total: data.listings.length
+    total: all.length
   });
-});
+}));
 
 // ===========================================================================
 // PUBLIC: LISTING DETAIL — requires login
 // ===========================================================================
-app.get('/listing/:id', requireUser, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
+app.get('/listing/:id', requireUser, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing) {
     req.flash('error', 'That listing could not be found.');
     return res.redirect('/');
   }
-  const reviews = data.reviews
-    .filter((r) => r.listingId === listing.id)
-    .sort((a, b) => b.createdAt - a.createdAt);
-  const avg =
-    reviews.length > 0
-      ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
-      : null;
+  const reviews = await store.getReviewsByListing(listing.id);
+  const avg = reviews.length > 0
+    ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
+    : null;
   res.render('listing', { listing, reviews, avg });
-});
+}));
 
-app.post('/listing/:id/book', requireUser, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
+app.post('/listing/:id/book', requireUser, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing) {
     req.flash('error', 'That listing could not be found.');
     return res.redirect('/');
@@ -236,32 +218,29 @@ app.post('/listing/:id/book', requireUser, (req, res) => {
     req.flash('error', 'Please provide your name and phone number.');
     return res.redirect('/listing/' + listing.id);
   }
-  data.bookings.push({
+  await store.createBooking({
     id: nanoid(10),
     listingId: listing.id,
     listingTitle: listing.title,
-    name,
-    phone,
+    name, phone,
     duration: duration || '',
     message: message || '',
     status: 'pending',
     createdAt: Date.now()
   });
-  db.write(data);
   req.flash('success', 'Your booking request was sent. The host will be in touch via AlgaAle.');
   res.redirect('/listing/' + listing.id);
-});
+}));
 
-app.post('/listing/:id/review', requireUser, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
+app.post('/listing/:id/review', requireUser, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing) return res.redirect('/');
   const { name, rating, comment } = req.body;
   if (!name || !comment) {
     req.flash('error', 'Please add your name and a comment.');
     return res.redirect('/listing/' + listing.id);
   }
-  data.reviews.push({
+  await store.createReview({
     id: nanoid(10),
     listingId: listing.id,
     name,
@@ -269,10 +248,9 @@ app.post('/listing/:id/review', requireUser, (req, res) => {
     comment,
     createdAt: Date.now()
   });
-  db.write(data);
   req.flash('success', 'Thanks for your review!');
   res.redirect('/listing/' + listing.id);
-});
+}));
 
 // SVG placeholder
 app.get('/placeholder.svg', (req, res) => {
@@ -296,7 +274,7 @@ app.get('/register', (req, res) => {
   res.render('register', { next: req.query.next || '' });
 });
 
-app.post('/register', (req, res) => {
+app.post('/register', wrap(async (req, res) => {
   const { fullName, phone, email, password, confirmPassword } = req.body;
   const next = (req.body.next || '').trim();
   const redir = '/register' + (next ? '?next=' + encodeURIComponent(next) : '');
@@ -314,20 +292,19 @@ app.post('/register', (req, res) => {
     return res.redirect(redir);
   }
 
-  const data = db.read();
-
   const phoneTrimmed = phone.trim();
-  if (data.users.some((u) => u.phone && u.phone === phoneTrimmed)) {
+  if (await store.phoneExists(phoneTrimmed)) {
     req.flash('error', 'An account with that phone number already exists. Try logging in.');
     return res.redirect(redir);
   }
+
   const emailTrimmed = (email || '').trim().toLowerCase();
-  if (emailTrimmed && data.users.some((u) => u.email && u.email.toLowerCase() === emailTrimmed)) {
+  if (emailTrimmed && await store.emailExists(emailTrimmed)) {
     req.flash('error', 'An account with that email already exists. Try logging in.');
     return res.redirect(redir);
   }
 
-  const user = {
+  const user = await store.createUser({
     id: nanoid(10),
     fullName: fullName.trim(),
     phone: phoneTrimmed,
@@ -336,15 +313,12 @@ app.post('/register', (req, res) => {
     role: 'seeker',
     providerApplication: { status: 'none', idType: null, idNumber: null, idImage: null, submittedAt: null, reviewedAt: null },
     createdAt: Date.now()
-  };
-
-  data.users.push(user);
-  db.write(data);
+  });
 
   req.session.user = sessionUser(user);
   req.flash('success', `Welcome to AlgaAle, ${user.fullName.split(' ')[0]}!`);
   res.redirect(next || '/');
-});
+}));
 
 // ===========================================================================
 // PUBLIC AUTH: LOGIN
@@ -354,31 +328,23 @@ app.get('/login', (req, res) => {
   res.render('login', { next: req.query.next || '' });
 });
 
-app.post('/login', (req, res) => {
+app.post('/login', wrap(async (req, res) => {
   const { identifier, password } = req.body;
   const next = (req.body.next || '').trim();
   const redir = '/login' + (next ? '?next=' + encodeURIComponent(next) : '');
 
-  const data = db.read();
-  const id = (identifier || '').trim();
-  const user = data.users.find(
-    (u) =>
-      (u.phone && u.phone === id) ||
-      (u.email && u.email.toLowerCase() === id.toLowerCase())
-  );
-
+  const user = await store.findUserByCredential((identifier || '').trim());
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     req.flash('error', 'Incorrect phone / email or password.');
     return res.redirect(redir);
   }
 
   req.session.user = sessionUser(user);
-  const firstName = (user.fullName || user.name || '').split(' ')[0];
+  const firstName = (user.fullName || '').split(' ')[0];
   req.flash('success', `Welcome back, ${firstName}!`);
   res.redirect(next || '/');
-});
+}));
 
-// Public logout
 app.post('/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
 });
@@ -386,17 +352,15 @@ app.post('/logout', (req, res) => {
 // ===========================================================================
 // BECOME A PROVIDER
 // ===========================================================================
-app.get('/become-provider', requireUser, (req, res) => {
+app.get('/become-provider', requireUser, wrap(async (req, res) => {
   const u = req.session.user;
   if (u.role === 'provider') return res.redirect('/provider');
-
-  const data = db.read();
-  const dbUser = data.users.find((x) => x.id === u.id);
+  const dbUser = await store.findUserById(u.id);
   const application = dbUser ? dbUser.providerApplication : { status: 'none' };
   res.render('become-provider', { application });
-});
+}));
 
-app.post('/become-provider', requireUser, upload.single('idImage'), (req, res) => {
+app.post('/become-provider', requireUser, upload.single('idImage'), wrap(async (req, res) => {
   const u = req.session.user;
   if (u.role === 'provider') return res.redirect('/provider');
 
@@ -406,18 +370,16 @@ app.post('/become-provider', requireUser, upload.single('idImage'), (req, res) =
     return res.redirect('/become-provider');
   }
 
-  const data = db.read();
-  const dbUser = data.users.find((x) => x.id === u.id);
+  const dbUser = await store.findUserById(u.id);
   if (!dbUser) return res.redirect('/');
 
   if (dbUser.providerApplication.status === 'approved') {
-    dbUser.role = 'provider';
-    req.session.user = sessionUser(dbUser);
-    db.write(data);
+    const updated = await store.approveProvider(u.id);
+    req.session.user = sessionUser(updated);
     return res.redirect('/provider');
   }
 
-  dbUser.providerApplication = {
+  const app = {
     status: 'pending',
     idType,
     idNumber,
@@ -425,33 +387,28 @@ app.post('/become-provider', requireUser, upload.single('idImage'), (req, res) =
     submittedAt: Date.now(),
     reviewedAt: null
   };
-  db.write(data);
-
-  req.session.user = sessionUser(dbUser);
+  const updated = await store.updateProviderApplication(u.id, app);
+  req.session.user = sessionUser(updated);
   req.flash('success', 'Application submitted! We will review it and get back to you.');
   res.redirect('/become-provider');
-});
+}));
 
 // ===========================================================================
 // PROVIDER DASHBOARD
 // ===========================================================================
-app.get('/provider', requireProvider, (req, res) => {
-  const data = db.read();
-  const myListings = data.listings
-    .filter((l) => l.ownerId === req.session.user.id)
-    .sort((a, b) => b.createdAt - a.createdAt);
+app.get('/provider', requireProvider, wrap(async (req, res) => {
+  const myListings = await store.getListingsByOwner(req.session.user.id);
   res.render('provider/dashboard', { listings: myListings, firstPhoto: listingFirstPhoto });
-});
+}));
 
 app.get('/provider/listings/new', requireProvider, (req, res) => {
   res.render('provider/listing-form', { listing: null });
 });
 
-app.post('/provider/listings', requireProvider, upload.fields(photoFields), (req, res) => {
-  const data = db.read();
+app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
   const b = req.body;
   const u = req.session.user;
-  const listing = {
+  await store.createListing({
     id: nanoid(10),
     ownerId: u.id,
     title: b.title,
@@ -469,110 +426,138 @@ app.post('/provider/listings', requireProvider, upload.fields(photoFields), (req
     status: 'active',
     photos: collectUploadedPhotos(req.files, null),
     createdAt: Date.now()
-  };
-  data.listings.push(listing);
-  db.write(data);
+  });
   req.flash('success', 'Listing created! It will appear publicly once reviewed.');
   res.redirect('/provider');
-});
+}));
 
-app.get('/provider/listings/:id/edit', requireProvider, (req, res) => {
-  const listing = getListing(req.params.id);
+app.get('/provider/listings/:id/edit', requireProvider, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing || listing.ownerId !== req.session.user.id) {
     req.flash('error', 'Listing not found or you do not have permission to edit it.');
     return res.redirect('/provider');
   }
   res.render('provider/listing-form', { listing });
-});
+}));
 
-app.post('/provider/listings/:id', requireProvider, upload.fields(photoFields), (req, res) => {
-  const data = db.read();
-  const idx = data.listings.findIndex((l) => l.id === req.params.id);
-  if (idx === -1 || data.listings[idx].ownerId !== req.session.user.id) {
+app.post('/provider/listings/:id', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing || listing.ownerId !== req.session.user.id) {
     req.flash('error', 'Listing not found or you do not have permission to edit it.');
     return res.redirect('/provider');
   }
   const b = req.body;
-  const existing = data.listings[idx];
-  data.listings[idx] = {
-    ...existing,
-    title: b.title,
-    type: b.type,
-    area: b.area,
-    price: Number(b.price) || 0,
-    period: b.period,
-    audience: b.audience,
+  await store.updateListing(req.params.id, {
+    title: b.title, type: b.type, area: b.area,
+    price: Number(b.price) || 0, period: b.period, audience: b.audience,
     ...parseAmenities(b),
     description: b.description || '',
+    ownerName: listing.ownerName,
+    ownerPhone: listing.ownerPhone,
+    verified: listing.verified,
+    featured: listing.featured,
     status: b.status || 'active',
-    photos: collectUploadedPhotos(req.files, existing.photos)
-  };
-  db.write(data);
+    photos: collectUploadedPhotos(req.files, listing.photos)
+  });
   req.flash('success', 'Listing updated.');
   res.redirect('/provider');
-});
+}));
 
-app.post('/provider/listings/:id/delete', requireProvider, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
+app.post('/provider/listings/:id/delete', requireProvider, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing || listing.ownerId !== req.session.user.id) {
     req.flash('error', 'Listing not found or access denied.');
     return res.redirect('/provider');
   }
-  data.listings = data.listings.filter((l) => l.id !== req.params.id);
-  db.write(data);
+  await store.deleteListing(req.params.id);
   req.flash('success', 'Listing deleted.');
   res.redirect('/provider');
-});
+}));
 
-app.post('/provider/listings/:id/photo/delete', requireProvider, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find(
-    (l) => l.id === req.params.id && l.ownerId === req.session.user.id
-  );
-  if (listing) {
+app.post('/provider/listings/:id/photo/delete', requireProvider, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (listing && listing.ownerId === req.session.user.id) {
     const { category, url } = req.body;
-    if (listing.photos && listing.photos[category]) {
-      listing.photos[category] = listing.photos[category].filter((p) => p !== url);
+    const photos = listing.photos || {};
+    if (photos[category]) {
+      photos[category] = photos[category].filter((p) => p !== url);
       const filePath = path.join(UPLOAD_DIR, path.basename(url));
       if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
-      db.write(data);
+      await store.updateListingPhotos(req.params.id, photos);
     }
   }
   res.redirect('/provider/listings/' + req.params.id + '/edit');
-});
+}));
 
 // ===========================================================================
-// OWNER: APPROVE / REJECT PROVIDER APPLICATIONS
+// OWNER: PROVIDER APPLICATION APPROVE / REJECT
 // ===========================================================================
-app.post('/owner/applications/:userId/approve', requireOwner, (req, res) => {
-  const data = db.read();
-  const user = data.users.find((u) => u.id === req.params.userId);
+app.post('/owner/applications/:userId/approve', requireOwner, wrap(async (req, res) => {
+  const user = await store.approveProvider(req.params.userId);
   if (!user) {
     req.flash('error', 'User not found.');
-    return res.redirect('/admin');
+  } else {
+    req.flash('success', `${user.fullName} is now an approved provider.`);
   }
-  user.role = 'provider';
-  user.providerApplication.status = 'approved';
-  user.providerApplication.reviewedAt = Date.now();
-  db.write(data);
-  req.flash('success', `${user.fullName} is now an approved provider.`);
   res.redirect('/admin');
-});
+}));
 
-app.post('/owner/applications/:userId/reject', requireOwner, (req, res) => {
-  const data = db.read();
-  const user = data.users.find((u) => u.id === req.params.userId);
+app.post('/owner/applications/:userId/reject', requireOwner, wrap(async (req, res) => {
+  const user = await store.rejectProvider(req.params.userId);
   if (!user) {
     req.flash('error', 'User not found.');
-    return res.redirect('/admin');
+  } else {
+    req.flash('success', `Application from ${user.fullName} rejected.`);
   }
-  user.providerApplication.status = 'rejected';
-  user.providerApplication.reviewedAt = Date.now();
-  db.write(data);
-  req.flash('success', `Application from ${user.fullName} rejected.`);
   res.redirect('/admin');
-});
+}));
+
+// ===========================================================================
+// OWNER DASHBOARD PAGES
+// ===========================================================================
+app.get('/owner/members', requireOwner, wrap(async (req, res) => {
+  const users = await store.getUsers();
+  const members = users.filter((u) => u.role !== 'admin');
+  const q = (req.query.q || '').toLowerCase();
+  const filtered = q
+    ? members.filter((u) =>
+        (u.fullName || '').toLowerCase().includes(q) ||
+        (u.phone || '').includes(q) ||
+        (u.email || '').toLowerCase().includes(q)
+      )
+    : members;
+  const stats = {
+    total: members.length,
+    seekers: members.filter((u) => u.role === 'seeker').length,
+    providers: members.filter((u) => u.role === 'provider').length,
+    pending: members.filter((u) => u.providerApplication && u.providerApplication.status === 'pending').length
+  };
+  res.render('owner/members', { members: filtered, stats, q: req.query.q || '' });
+}));
+
+app.get('/owner/applications', requireOwner, wrap(async (req, res) => {
+  const users = await store.getUsers();
+  const pending   = users.filter((u) => u.providerApplication && u.providerApplication.status === 'pending');
+  const approved  = users.filter((u) => u.providerApplication && u.providerApplication.status === 'approved');
+  const rejected  = users.filter((u) => u.providerApplication && u.providerApplication.status === 'rejected');
+  res.render('owner/applications', { pending, approved, rejected });
+}));
+
+app.get('/owner/listings', requireOwner, wrap(async (req, res) => {
+  const listings = await store.getListings();
+  const users    = await store.getUsers();
+  const userMap  = {};
+  users.forEach((u) => { userMap[u.id] = u; });
+  const q = (req.query.q || '').toLowerCase();
+  const filtered = q
+    ? listings.filter((l) =>
+        (l.title || '').toLowerCase().includes(q) ||
+        (l.area  || '').toLowerCase().includes(q) ||
+        (l.ownerName || '').toLowerCase().includes(q)
+      )
+    : listings;
+  res.render('owner/listings', { listings: filtered, userMap, firstPhoto: listingFirstPhoto, q: req.query.q || '' });
+}));
 
 // ===========================================================================
 // ADMIN AUTH
@@ -584,14 +569,9 @@ app.get('/admin/login', (req, res) => {
   res.render('admin/login');
 });
 
-app.post('/admin/login', (req, res) => {
+app.post('/admin/login', wrap(async (req, res) => {
   const { email, password } = req.body;
-  const data = db.read();
-  const user = data.users.find(
-    (u) =>
-      (u.email && u.email.toLowerCase() === (email || '').toLowerCase()) ||
-      (u.phone && u.phone === (email || '').trim())
-  );
+  const user = await store.findUserByCredential((email || '').trim());
   if (!user || !bcrypt.compareSync(password || '', user.passwordHash)) {
     req.flash('error', 'Invalid credentials.');
     return res.redirect('/admin/login');
@@ -601,9 +581,9 @@ app.post('/admin/login', (req, res) => {
     return res.redirect('/admin/login');
   }
   req.session.user = sessionUser(user);
-  req.flash('success', `Welcome back, ${user.fullName || user.name}.`);
+  req.flash('success', `Welcome back, ${user.fullName}.`);
   res.redirect('/admin');
-});
+}));
 
 app.post('/admin/logout', (req, res) => {
   req.session.destroy(() => res.redirect('/'));
@@ -612,50 +592,49 @@ app.post('/admin/logout', (req, res) => {
 // ===========================================================================
 // ADMIN DASHBOARD
 // ===========================================================================
-app.get('/admin', requireAdmin, (req, res) => {
-  const data = db.read();
+app.get('/admin', requireAdmin, wrap(async (req, res) => {
+  const [listings, bookings, reviews, users] = await Promise.all([
+    store.getListings(),
+    store.getBookings(),
+    store.getAllReviews(),
+    store.getUsers()
+  ]);
   const stats = {
-    listings: data.listings.length,
-    verified: data.listings.filter((l) => l.verified).length,
-    featured: data.listings.filter((l) => l.featured).length,
-    bookings: data.bookings.length,
-    pending: data.bookings.filter((b) => b.status === 'pending').length,
-    reviews: data.reviews.length,
-    users: data.users.filter((u) => u.role === 'seeker' || u.role === 'provider').length,
-    providers: data.users.filter((u) => u.role === 'provider').length
+    listings:  listings.length,
+    verified:  listings.filter((l) => l.verified).length,
+    featured:  listings.filter((l) => l.featured).length,
+    bookings:  bookings.length,
+    pending:   bookings.filter((b) => b.status === 'pending').length,
+    reviews:   reviews.length,
+    users:     users.filter((u) => u.role === 'seeker' || u.role === 'provider').length,
+    providers: users.filter((u) => u.role === 'provider').length
   };
-  const recentBookings = [...data.bookings].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
+  const recentBookings = bookings.slice(0, 5);
   const pendingApplications = req.session.user.role === 'owner'
-    ? data.users.filter((u) => u.providerApplication && u.providerApplication.status === 'pending')
+    ? users.filter((u) => u.providerApplication && u.providerApplication.status === 'pending')
     : [];
   res.render('admin/dashboard', { stats, recentBookings, pendingApplications });
-});
+}));
 
 // ===========================================================================
 // ADMIN: LISTINGS
 // ===========================================================================
-app.get('/admin/listings', requireAdmin, (req, res) => {
-  const data = db.read();
-  const listings = [...data.listings].sort((a, b) => b.createdAt - a.createdAt);
+app.get('/admin/listings', requireAdmin, wrap(async (req, res) => {
+  const listings = await store.getListings();
   res.render('admin/listings', { listings, firstPhoto: listingFirstPhoto });
-});
+}));
 
 app.get('/admin/listings/new', requireAdmin, (req, res) => {
   res.render('admin/listing-form', { listing: null });
 });
 
-app.post('/admin/listings', requireAdmin, upload.fields(photoFields), (req, res) => {
-  const data = db.read();
+app.post('/admin/listings', requireAdmin, upload.fields(photoFields), wrap(async (req, res) => {
   const b = req.body;
-  const listing = {
+  await store.createListing({
     id: nanoid(10),
     ownerId: null,
-    title: b.title,
-    type: b.type,
-    area: b.area,
-    price: Number(b.price) || 0,
-    period: b.period,
-    audience: b.audience,
+    title: b.title, type: b.type, area: b.area,
+    price: Number(b.price) || 0, period: b.period, audience: b.audience,
     ...parseAmenities(b),
     description: b.description || '',
     ownerName: b.ownerName || '',
@@ -665,39 +644,30 @@ app.post('/admin/listings', requireAdmin, upload.fields(photoFields), (req, res)
     status: b.status || 'active',
     photos: collectUploadedPhotos(req.files, null),
     createdAt: Date.now()
-  };
-  data.listings.push(listing);
-  db.write(data);
+  });
   req.flash('success', 'Listing created.');
   res.redirect('/admin/listings');
-});
+}));
 
-app.get('/admin/listings/:id/edit', requireAdmin, (req, res) => {
-  const listing = getListing(req.params.id);
+app.get('/admin/listings/:id/edit', requireAdmin, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (!listing) {
     req.flash('error', 'Listing not found.');
     return res.redirect('/admin/listings');
   }
   res.render('admin/listing-form', { listing });
-});
+}));
 
-app.post('/admin/listings/:id', requireAdmin, upload.fields(photoFields), (req, res) => {
-  const data = db.read();
-  const idx = data.listings.findIndex((l) => l.id === req.params.id);
-  if (idx === -1) {
+app.post('/admin/listings/:id', requireAdmin, upload.fields(photoFields), wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing) {
     req.flash('error', 'Listing not found.');
     return res.redirect('/admin/listings');
   }
   const b = req.body;
-  const existing = data.listings[idx];
-  data.listings[idx] = {
-    ...existing,
-    title: b.title,
-    type: b.type,
-    area: b.area,
-    price: Number(b.price) || 0,
-    period: b.period,
-    audience: b.audience,
+  await store.updateListing(req.params.id, {
+    title: b.title, type: b.type, area: b.area,
+    price: Number(b.price) || 0, period: b.period, audience: b.audience,
     ...parseAmenities(b),
     description: b.description || '',
     ownerName: b.ownerName || '',
@@ -705,69 +675,50 @@ app.post('/admin/listings/:id', requireAdmin, upload.fields(photoFields), (req, 
     verified: b.verified === 'on',
     featured: b.featured === 'on',
     status: b.status || 'active',
-    photos: collectUploadedPhotos(req.files, existing.photos)
-  };
-  db.write(data);
+    photos: collectUploadedPhotos(req.files, listing.photos)
+  });
   req.flash('success', 'Listing updated.');
   res.redirect('/admin/listings');
-});
+}));
 
-app.post('/admin/listings/:id/photo/delete', requireAdmin, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
+app.post('/admin/listings/:id/photo/delete', requireAdmin, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
   if (listing) {
     const { category, url } = req.body;
-    if (listing.photos[category]) {
-      listing.photos[category] = listing.photos[category].filter((p) => p !== url);
+    const photos = listing.photos || {};
+    if (photos[category]) {
+      photos[category] = photos[category].filter((p) => p !== url);
       const filePath = path.join(UPLOAD_DIR, path.basename(url));
       if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
-      db.write(data);
+      await store.updateListingPhotos(req.params.id, photos);
     }
   }
   res.redirect('/admin/listings/' + req.params.id + '/edit');
-});
+}));
 
-app.post('/admin/listings/:id/toggle', requireAdmin, (req, res) => {
-  const data = db.read();
-  const listing = data.listings.find((l) => l.id === req.params.id);
-  if (listing) {
-    const field = req.body.field;
-    if (['verified', 'featured'].includes(field)) {
-      listing[field] = !listing[field];
-    } else if (field === 'status') {
-      listing.status = listing.status === 'hidden' ? 'active' : 'hidden';
-    }
-    db.write(data);
-  }
+app.post('/admin/listings/:id/toggle', requireAdmin, wrap(async (req, res) => {
+  await store.toggleListing(req.params.id, req.body.field);
   res.redirect(req.get('referer') || '/admin/listings');
-});
+}));
 
-app.post('/admin/listings/:id/delete', requireAdmin, (req, res) => {
-  const data = db.read();
-  data.listings = data.listings.filter((l) => l.id !== req.params.id);
-  db.write(data);
+app.post('/admin/listings/:id/delete', requireAdmin, wrap(async (req, res) => {
+  await store.deleteListing(req.params.id);
   req.flash('success', 'Listing deleted.');
   res.redirect('/admin/listings');
-});
+}));
 
 // ===========================================================================
 // ADMIN: BOOKINGS
 // ===========================================================================
-app.get('/admin/bookings', requireAdmin, (req, res) => {
-  const data = db.read();
-  const bookings = [...data.bookings].sort((a, b) => b.createdAt - a.createdAt);
+app.get('/admin/bookings', requireAdmin, wrap(async (req, res) => {
+  const bookings = await store.getBookings();
   res.render('admin/bookings', { bookings });
-});
+}));
 
-app.post('/admin/bookings/:id/status', requireAdmin, (req, res) => {
-  const data = db.read();
-  const booking = data.bookings.find((bk) => bk.id === req.params.id);
-  if (booking) {
-    booking.status = req.body.status || booking.status;
-    db.write(data);
-  }
+app.post('/admin/bookings/:id/status', requireAdmin, wrap(async (req, res) => {
+  await store.updateBookingStatus(req.params.id, req.body.status);
   res.redirect('/admin/bookings');
-});
+}));
 
 // ---------------------------------------------------------------------------
 // 404
@@ -776,7 +727,15 @@ app.use((req, res) => {
   res.status(404).render('404');
 });
 
-app.listen(PORT, () => {
-  console.log(`  AlgaAle is running -> http://localhost:${PORT}`);
-  console.log(`  Admin panel       -> http://localhost:${PORT}/admin/login`);
+// ===========================================================================
+// START — seed first, then listen
+// ===========================================================================
+seed.run().then(() => {
+  app.listen(PORT, () => {
+    console.log(`  AlgaAle is running -> http://localhost:${PORT}`);
+    console.log(`  Admin panel       -> http://localhost:${PORT}/admin/login`);
+  });
+}).catch((err) => {
+  console.error('Seed failed:', err);
+  process.exit(1);
 });
