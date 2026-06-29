@@ -52,11 +52,21 @@ app.use((req, res, next) => {
 // ---------------------------------------------------------------------------
 // File uploads
 // ---------------------------------------------------------------------------
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, UPLOAD_DIR),
-  filename:    (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase() || '.jpg';
-    cb(null, `${Date.now()}-${nanoid(6)}${ext}`);
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: 'algaale',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp'],
+    transformation: [{ width: 1200, crop: 'limit' }]
   }
 });
 const upload = multer({
@@ -135,7 +145,7 @@ function collectUploadedPhotos(files, existing) {
   C.PHOTO_CATEGORIES.forEach((cat) => {
     if (!photos[cat]) photos[cat] = [];
     const f = files && files[`photo_${cat}`];
-    if (f && f.length) f.forEach((file) => photos[cat].push('/uploads/' + file.filename));
+    if (f && f.length) f.forEach((file) => photos[cat].push(file.path));
   });
   return photos;
 }
@@ -383,7 +393,7 @@ app.post('/become-provider', requireUser, upload.single('idImage'), wrap(async (
     status: 'pending',
     idType,
     idNumber,
-    idImage: req.file ? '/uploads/' + req.file.filename : (dbUser.providerApplication.idImage || null),
+    idImage: req.file ? req.file.path : (dbUser.providerApplication.idImage || null),
     submittedAt: Date.now(),
     reviewedAt: null
   };
@@ -481,8 +491,7 @@ app.post('/provider/listings/:id/photo/delete', requireProvider, wrap(async (req
     const photos = listing.photos || {};
     if (photos[category]) {
       photos[category] = photos[category].filter((p) => p !== url);
-      const filePath = path.join(UPLOAD_DIR, path.basename(url));
-      if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
+      // Photo stored on Cloudinary - no local deletion needed
       await store.updateListingPhotos(req.params.id, photos);
     }
   }
@@ -688,8 +697,7 @@ app.post('/admin/listings/:id/photo/delete', requireAdmin, wrap(async (req, res)
     const photos = listing.photos || {};
     if (photos[category]) {
       photos[category] = photos[category].filter((p) => p !== url);
-      const filePath = path.join(UPLOAD_DIR, path.basename(url));
-      if (fs.existsSync(filePath)) fs.unlink(filePath, () => {});
+      // Photo stored on Cloudinary - no local deletion needed
       await store.updateListingPhotos(req.params.id, photos);
     }
   }
