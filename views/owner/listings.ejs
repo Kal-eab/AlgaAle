@@ -59,7 +59,7 @@
                   <% if (l.featured) { %><span class="pill pill-featured" style="font-size:.7rem;">Featured</span><% } %>
                 </div>
               </td>
-              <td class="muted" style="font-size:.85rem;"><%= l.area %><br><%= C.LISTING_TYPES[l.type] || l.type %></td>
+              <td class="muted" style="font-size:.85rem;"><%= l.area %><br><%= C.typeLabel(l.type) %></td>
               <td style="white-space:nowrap;">ETB <%= money(l.price) %><br><span class="muted" style="font-size:.78rem;">/<%= l.period %></span></td>
               <td style="font-size:.85rem;">
                 <% if (l.ownerId && userMap[l.ownerId]) { %>
