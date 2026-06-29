@@ -22,35 +22,50 @@
         <a href="/register" class="btn btn-ghost btn-sm">Register</a>
         <a href="/login" class="btn btn-primary btn-sm">Log in</a>
 
-      <% } else if (user.role === 'seeker') { %>
-        <span style="color:var(--body);font-size:.9rem;">Hi, <%= user.fullName.split(' ')[0] %></span>
-        <% if (user.providerAppStatus === 'pending') { %>
-          <span class="btn btn-ghost btn-sm" style="opacity:.6;cursor:default;">Application pending</span>
-        <% } else { %>
-          <a href="/become-provider" class="btn btn-ghost btn-sm">List your home</a>
-        <% } %>
-        <form action="/logout" method="POST" class="inline-form">
-          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
-        </form>
+      <% } else { %>
+        <div class="profile-menu">
+          <button class="profile-trigger" aria-haspopup="true">
+            <span class="profile-avatar"><%= user.fullName.charAt(0).toUpperCase() %></span>
+            <span class="profile-name"><%= user.fullName.split(' ')[0] %></span>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="opacity:.5"><path d="M2 4l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
 
-      <% } else if (user.role === 'provider') { %>
-        <span style="color:var(--body);font-size:.9rem;">Hi, <%= user.fullName.split(' ')[0] %></span>
-        <a href="/provider" class="btn btn-ghost btn-sm">My listings</a>
-        <form action="/logout" method="POST" class="inline-form">
-          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
-        </form>
+          <div class="profile-dropdown">
+            <div class="profile-dropdown-info">
+              <div class="profile-dropdown-name"><%= user.fullName %></div>
+              <div class="profile-dropdown-meta"><%= user.phone || user.email || '' %></div>
+              <div class="profile-dropdown-role">
+                <% if (user.role === 'owner') { %>
+                  <span class="pill pill-featured" style="font-size:.7rem;">Owner</span>
+                <% } else if (user.role === 'provider') { %>
+                  <span class="pill pill-verified" style="font-size:.7rem;">Provider</span>
+                <% } else if (user.role === 'seeker') { %>
+                  <span class="pill pill-active" style="font-size:.7rem;">Seeker</span>
+                <% } %>
+              </div>
+            </div>
 
-      <% } else if (user.role === 'owner') { %>
-        <a href="/admin" class="btn btn-primary btn-sm">Owner panel</a>
-        <form action="/logout" method="POST" class="inline-form">
-          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
-        </form>
+            <div class="profile-dropdown-divider"></div>
 
-      <% } else if (user.role === 'admin') { %>
-        <a href="/admin" class="btn btn-ghost btn-sm">Dashboard</a>
-        <form action="/admin/logout" method="POST" class="inline-form">
-          <button type="submit" class="btn btn-ghost btn-sm">Log out</button>
-        </form>
+            <% if (user.role === 'seeker') { %>
+              <% if (user.providerAppStatus === 'pending') { %>
+                <div class="profile-dropdown-item disabled">Application pending…</div>
+              <% } else { %>
+                <a href="/become-provider" class="profile-dropdown-item">List your home</a>
+              <% } %>
+            <% } else if (user.role === 'provider') { %>
+              <a href="/provider" class="profile-dropdown-item">My listings</a>
+            <% } else if (user.role === 'owner' || user.role === 'admin') { %>
+              <a href="/admin" class="profile-dropdown-item">Owner panel</a>
+            <% } %>
+
+            <div class="profile-dropdown-divider"></div>
+
+            <form action="<%= user.role === 'admin' ? '/admin/logout' : '/logout' %>" method="POST">
+              <button type="submit" class="profile-dropdown-item profile-dropdown-logout">Log out</button>
+            </form>
+          </div>
+        </div>
       <% } %>
     </nav>
   </div>

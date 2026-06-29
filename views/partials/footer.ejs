@@ -25,5 +25,18 @@
   </div>
   <div class="container footer-bottom muted">© <%= new Date().getFullYear() %> AlgaAle · Addis Ababa, Ethiopia</div>
 </footer>
+<script>
+  // Profile dropdown toggle
+  const menu = document.querySelector('.profile-menu');
+  if (menu) {
+    menu.querySelector('.profile-trigger').addEventListener('click', function(e) {
+      e.stopPropagation();
+      menu.classList.toggle('open');
+    });
+    document.addEventListener('click', function() {
+      menu.classList.remove('open');
+    });
+  }
+</script>
 </body>
 </html>
