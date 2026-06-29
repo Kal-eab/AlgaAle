@@ -86,18 +86,16 @@
         %>
           <div class="photo-cat">
             <label><%= label %></label>
-            <input type="file" name="photo_<%= cat %>" accept="image/*" multiple />
+            <input type="file" name="photo_<%= cat %>" accept="image/jpeg,image/png,image/webp" multiple />
             <% if (imgs.length) { %>
               <div class="existing-photos">
                 <% imgs.forEach(function(src){ %>
                   <div class="existing-photo">
                     <img src="<%= src %>" alt="" />
                     <% if (editing) { %>
-                    <form action="/provider/listings/<%= listing.id %>/photo/delete" method="POST">
-                      <input type="hidden" name="category" value="<%= cat %>" />
-                      <input type="hidden" name="url" value="<%= src %>" />
-                      <button type="submit" class="photo-del" title="Remove">×</button>
-                    </form>
+                    <button type="submit"
+                            form="delphoto-<%= cat %>-<%= src.replace(/[^a-zA-Z0-9]/g,'') %>"
+                            class="photo-del" title="Remove">×</button>
                     <% } %>
                   </div>
                 <% }) %>
@@ -113,6 +111,20 @@
       <a href="/provider" class="btn btn-ghost">Cancel</a>
     </div>
   </form>
+
+  <%# Delete-photo forms live OUTSIDE the main form to avoid invalid nesting %>
+  <% if (editing) { %>
+    <% C.PHOTO_CATEGORIES.forEach(function(cat){
+         var imgs = (listing.photos && listing.photos[cat]) ? listing.photos[cat] : [];
+         imgs.forEach(function(src){ %>
+      <form id="delphoto-<%= cat %>-<%= src.replace(/[^a-zA-Z0-9]/g,'') %>"
+            action="/provider/listings/<%= listing.id %>/photo/delete" method="POST"
+            style="display:none;">
+        <input type="hidden" name="category" value="<%= cat %>" />
+        <input type="hidden" name="url" value="<%= src %>" />
+      </form>
+    <% }); }) %>
+  <% } %>
 </div>
 
 <%- include('../partials/footer') %>

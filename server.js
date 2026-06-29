@@ -37,11 +37,26 @@ app.use(session({
   secret: process.env.SESSION_SECRET || 'alga-dev-secret-change-me',
   resave: false,
   saveUninitialized: false,
-  cookie: { maxAge: 1000 * 60 * 60 * 8 }
+  cookie: {
+    maxAge: 1000 * 60 * 60 * 8,
+    httpOnly: true,
+    sameSite: 'lax',
+    secure: process.env.NODE_ENV === 'production'
+  }
 }));
 app.use(flash());
 
-app.use((req, res, next) => {
+app.use(async (req, res, next) => {
+  if (req.session.user) {
+    try {
+      const fresh = await store.findUserById(req.session.user.id);
+      if (fresh && fresh.role !== req.session.user.role) {
+        req.session.user.role = fresh.role;
+        req.session.user.providerAppStatus =
+          fresh.providerApplication ? fresh.providerApplication.status : 'none';
+      }
+    } catch (_) { /* ignore, keep existing session */ }
+  }
   res.locals.C     = C;
   res.locals.user  = req.session.user || null;
   res.locals.flash = { success: req.flash('success'), error: req.flash('error') };
@@ -72,13 +87,30 @@ const storage = new CloudinaryStorage({
     };
   }
 });
+
+// Separate storage for ID verification photos — authenticated delivery type
+// keeps them off public URLs. Signed URLs needed to view them in the owner panel.
+const idStorage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: async () => ({
+    folder: 'algaale/ids',
+    type: 'authenticated',
+    allowed_formats: ['jpg', 'jpeg', 'png', 'webp']
+  })
+});
+
+const mimeFilter = (req, file, cb) => cb(null, /^image\/(jpe?g|png|webp)$/i.test(file.mimetype));
+
 const upload = multer({
   storage,
   limits: { fileSize: 6 * 1024 * 1024 },
-  fileFilter: (req, file, cb) => {
-    if (/^image\//.test(file.mimetype)) cb(null, true);
-    else cb(null, false);
-  }
+  fileFilter: mimeFilter
+});
+
+const idUpload = multer({
+  storage: idStorage,
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: mimeFilter
 });
 const photoFields = C.PHOTO_CATEGORIES.map((c) => ({ name: `photo_${c}`, maxCount: 6 }));
 
@@ -211,6 +243,13 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   const listing = await store.getListingById(req.params.id);
   if (!listing) {
     req.flash('error', 'That listing could not be found.');
+    return res.redirect('/');
+  }
+  const u = req.session.user;
+  const isStaff = u && (u.role === 'admin' || u.role === 'owner');
+  const isOwnerOfListing = u && listing.ownerId === u.id;
+  if (listing.status === 'hidden' && !isStaff && !isOwnerOfListing) {
+    req.flash('error', 'That listing is not available.');
     return res.redirect('/');
   }
   const reviews = await store.getReviewsByListing(listing.id);
@@ -373,7 +412,7 @@ app.get('/become-provider', requireUser, wrap(async (req, res) => {
   res.render('become-provider', { application });
 }));
 
-app.post('/become-provider', requireUser, upload.single('idImage'), wrap(async (req, res) => {
+app.post('/become-provider', requireUser, idUpload.single('idImage'), wrap(async (req, res) => {
   const u = req.session.user;
   if (u.role === 'provider') return res.redirect('/provider');
 
@@ -440,7 +479,7 @@ app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap
     photos: collectUploadedPhotos(req.files, null),
     createdAt: Date.now()
   });
-  req.flash('success', 'Listing created! It will appear publicly once reviewed.');
+  req.flash('success', 'Listing created and is now live.');
   res.redirect('/provider');
 }));
 
