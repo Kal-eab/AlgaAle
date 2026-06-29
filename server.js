@@ -1,4 +1,5 @@
 'use strict';
+require('dotenv').config();
 const path    = require('path');
 const fs      = require('fs');
 const express = require('express');
@@ -735,6 +736,27 @@ app.post('/admin/bookings/:id/status', requireAdmin, wrap(async (req, res) => {
 // ---------------------------------------------------------------------------
 app.use((req, res) => {
   res.status(404).render('404');
+});
+
+// ---------------------------------------------------------------------------
+// Error handler — turns upload/server failures into a friendly message
+// instead of a bare "Internal Server Error".
+// ---------------------------------------------------------------------------
+// eslint-disable-next-line no-unused-vars
+app.use((err, req, res, next) => {
+  console.error('Request failed:', err);
+
+  let msg = 'Something went wrong. Please try again.';
+  if (err instanceof multer.MulterError) {
+    msg = err.code === 'LIMIT_FILE_SIZE'
+      ? 'That photo is too large. Please upload images under 6 MB.'
+      : 'There was a problem with the uploaded file. Please try again.';
+  } else if (/cloudinary|api_key|cloud_name|Must supply/i.test(err.message || '')) {
+    msg = 'Photo upload is not configured correctly. Please contact the site owner.';
+  }
+
+  req.flash('error', msg);
+  res.redirect(req.get('referer') || '/');
 });
 
 // ===========================================================================

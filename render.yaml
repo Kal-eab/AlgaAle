@@ -18,6 +18,12 @@ services:
         sync: false            # you fill this in the dashboard
       - key: ADMIN_PASSWORD
         sync: false            # you fill this in the dashboard
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false            # REQUIRED for photo uploads — from your Cloudinary dashboard
+      - key: CLOUDINARY_API_KEY
+        sync: false            # REQUIRED for photo uploads — from your Cloudinary dashboard
+      - key: CLOUDINARY_API_SECRET
+        sync: false            # REQUIRED for photo uploads — from your Cloudinary dashboard
     disk:
       name: alga-data
       mountPath: /data         # db.json + uploads/ live here, survive redeploys
