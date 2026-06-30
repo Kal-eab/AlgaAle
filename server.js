@@ -4,6 +4,7 @@ const path    = require('path');
 const fs      = require('fs');
 const express = require('express');
 const session = require('express-session');
+const pgSession = require('connect-pg-simple')(session);
 const flash   = require('connect-flash');
 const multer  = require('multer');
 const bcrypt  = require('bcryptjs');
@@ -33,7 +34,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.set('trust proxy', 1);
 
-app.use(session({
+const sessionConfig = {
   secret: process.env.SESSION_SECRET || 'alga-dev-secret-change-me',
   resave: false,
   saveUninitialized: false,
@@ -43,7 +44,20 @@ app.use(session({
     sameSite: 'lax',
     secure: process.env.NODE_ENV === 'production'
   }
-}));
+};
+
+// In production, keep sessions in Postgres so they survive restarts/deploys
+if (process.env.DATABASE_URL) {
+  sessionConfig.store = new pgSession({
+    conObject: {
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false }
+    },
+    createTableIfMissing: true   // auto-creates the "session" table
+  });
+}
+
+app.use(session(sessionConfig));
 app.use(flash());
 
 app.use(async (req, res, next) => {
