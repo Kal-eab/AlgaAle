@@ -1,0 +1,17 @@
+<%- include('partials/header', { title: 'Booking — AlgaAle' }) %>
+<div class="container" style="max-width:640px;">
+  <div class="panel">
+    <h1>Booking recorded</h1>
+    <p class="muted">Your booking for <strong><%= booking.listingTitle %></strong> has been created.</p>
+    <ul class="detail-list">
+      <li><strong>Dates:</strong> <%= booking.checkinDate %> – <%= booking.checkoutDate %></li>
+      <li><strong>Guests:</strong> <%= booking.guests %></li>
+      <li><strong>Nights:</strong> <%= booking.nights %></li>
+      <li><strong>Total:</strong> <%= money(booking.total) %> birr</li>
+      <li><strong>Payment status:</strong> <%= booking.paymentStatus %></li>
+    </ul>
+    <p class="muted">💳 Online payment (Chapa) is enabled in the next step. Once a payment clears, the host's contact details will appear here.</p>
+    <a href="/" class="btn btn-primary">Back to home</a>
+  </div>
+</div>
+<%- include('partials/footer') %>

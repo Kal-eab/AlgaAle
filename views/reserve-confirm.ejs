@@ -1,0 +1,68 @@
+<%- include('partials/header', { title: 'Confirm and pay — ' + listing.title }) %>
+<div class="container">
+  <a href="/listing/<%= listing.id %>" class="back-link">← Back to listing</a>
+  <h1 style="margin:12px 0 24px;">Confirm and pay</h1>
+  <div style="display:grid;grid-template-columns:1fr 380px;gap:28px;align-items:start;">
+    <div>
+      <section class="panel">
+        <h3>1. Choose when to pay</h3>
+        <label class="check"><input type="radio" name="when" checked /> Pay <%= money(total) %> birr now</label>
+      </section>
+      <section class="panel">
+        <h3>2. Add a payment method</h3>
+        <p class="muted">You'll be redirected to Chapa to pay securely (telebirr, CBE, card).</p>
+        <form action="/listing/<%= listing.id %>/pay" method="POST">
+          <input type="hidden" name="checkin"  value="<%= checkin %>" />
+          <input type="hidden" name="checkout" value="<%= checkout %>" />
+          <input type="hidden" name="guests"   value="<%= guests %>" />
+          <% if (room) { %><input type="hidden" name="roomId" value="<%= room.id %>" /><% } %>
+          <button type="submit" class="btn btn-primary btn-block">Pay <%= money(total) %> birr</button>
+        </form>
+      </section>
+      <section class="panel">
+        <h3>3. Review your reservation</h3>
+        <h4>Amenities</h4>
+        <div class="amenity-list">
+          <span class="amenity <%= listing.furnished ? 'on' : 'off' %>"><%= listing.furnished ? '✔' : '—' %> Furnished</span>
+          <span class="amenity <%= listing.wifi ? 'on' : 'off' %>"><%= listing.wifi ? '✔' : '—' %> WiFi</span>
+          <span class="amenity <%= listing.water ? 'on' : 'off' %>"><%= listing.water ? '✔' : '—' %> Water</span>
+          <span class="amenity <%= listing.parking ? 'on' : 'off' %>"><%= listing.parking ? '✔' : '—' %> Parking</span>
+        </div>
+        <h4>House rules</h4>
+        <p class="muted"><%= listing.description || 'No additional house rules provided.' %></p>
+        <h4>Cancellation policy</h4>
+        <p class="muted">This reservation is non-refundable once payment is confirmed. (Customisable later.)</p>
+      </section>
+    </div>
+    <aside style="position:sticky;top:20px;">
+      <div class="panel">
+        <div style="display:flex;gap:12px;">
+          <% var cover = (room && room.photo) ? room.photo : firstPhoto(listing); %>
+          <% if (cover) { %><img src="<%= cover %>" alt="" style="width:96px;height:76px;object-fit:cover;border-radius:8px;" /><% } %>
+          <div>
+            <strong><%= listing.title %></strong>
+            <div class="muted" style="font-size:.85rem;">📍 <%= listing.area %>, Addis Ababa</div>
+            <% if (room) { %><div class="muted" style="font-size:.85rem;"><%= room.name %></div><% } %>
+          </div>
+        </div>
+        <hr />
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <span><strong>Dates</strong><br><span class="muted"><%= checkin %> – <%= checkout %></span></span>
+          <a href="/listing/<%= listing.id %>" class="btn btn-sm btn-ghost">Change</a>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+          <span><strong>Guests</strong><br><span class="muted"><%= guests %> guest<%= guests > 1 ? 's' : '' %></span></span>
+          <a href="/listing/<%= listing.id %>" class="btn btn-sm btn-ghost">Change</a>
+        </div>
+        <hr />
+        <h4>Price details</h4>
+        <div style="display:flex;justify-content:space-between;"><span><%= nights %> night<%= nights > 1 ? 's' : '' %> × <%= money(Math.round(nightly)) %> birr</span><span><%= money(subtotal) %> birr</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;"><span>AlgaAle service fee</span><span><%= money(serviceFee) %> birr</span></div>
+        <hr />
+        <div style="display:flex;justify-content:space-between;font-weight:700;"><span>Total</span><span><%= money(total) %> birr</span></div>
+        <div style="display:flex;justify-content:space-between;margin-top:6px;"><span><strong>Due today</strong></span><span><strong><%= money(total) %> birr</strong></span></div>
+      </div>
+    </aside>
+  </div>
+</div>
+<%- include('partials/footer') %>

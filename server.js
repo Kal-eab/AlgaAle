@@ -206,6 +206,27 @@ function listingFirstPhoto(l) {
   return null;
 }
 
+function effectiveNightly(listing, room) {
+  if (room) return Number(room.nightlyRate) || 0;
+  return listing.period === 'weekly'
+    ? (Number(listing.price) || 0) / 7
+    : (Number(listing.price) || 0);
+}
+
+function nightsBetween(checkin, checkout) {
+  if (!checkin || !checkout) return 0;
+  const a = new Date(checkin + 'T00:00:00');
+  const b = new Date(checkout + 'T00:00:00');
+  if (isNaN(a) || isNaN(b)) return 0;
+  return Math.round((b - a) / 86400000);
+}
+
+function computeTotals(nightly, nights) {
+  const subtotal = Math.round(nightly * nights);
+  const serviceFee = Math.round(subtotal * C.SERVICE_FEE_PERCENT / 100);
+  return { subtotal, serviceFee, total: subtotal + serviceFee };
+}
+
 // ===========================================================================
 // PUBLIC: HOME
 // ===========================================================================
@@ -270,7 +291,11 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   const avg = reviews.length > 0
     ? (reviews.reduce((s, r) => s + r.rating, 0) / reviews.length).toFixed(1)
     : null;
-  res.render('listing', { listing, reviews, avg });
+  const rooms = await store.getRoomsByListing(listing.id);
+  let baseNightly = 0;
+  if (rooms.length) baseNightly = Math.min.apply(null, rooms.map(r => r.nightlyRate));
+  else baseNightly = listing.period === 'weekly' ? listing.price / 7 : listing.price;
+  res.render('listing', { listing, reviews, avg, rooms, baseNightly });
 }));
 
 app.post('/listing/:id/book', requireUser, wrap(async (req, res) => {
@@ -296,6 +321,113 @@ app.post('/listing/:id/book', requireUser, wrap(async (req, res) => {
   });
   req.flash('success', 'Your booking request was sent. The host will be in touch via AlgaAle.');
   res.redirect('/listing/' + listing.id);
+}));
+
+// ===========================================================================
+// SHORT-STAY BOOKING (Daily / Weekly) — date picker, room picker, confirm
+// ===========================================================================
+app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing) { req.flash('error', 'That listing could not be found.'); return res.redirect('/'); }
+  if (listing.period !== 'daily' && listing.period !== 'weekly') {
+    return res.redirect('/listing/' + listing.id);
+  }
+  const checkin = req.query.checkin, checkout = req.query.checkout;
+  const guests = Number(req.query.guests) || 1;
+  const nights = nightsBetween(checkin, checkout);
+  if (!checkin || !checkout || !(nights > 0)) {
+    req.flash('error', 'Please choose valid check-in and check-out dates.');
+    return res.redirect('/listing/' + listing.id);
+  }
+  const rooms = await store.getRoomsByListing(listing.id);
+
+  if (rooms.length > 1 && !req.query.room) {
+    return res.render('reserve-rooms', { listing, rooms, checkin, checkout, guests, nights });
+  }
+
+  let room = null;
+  if (req.query.room) {
+    room = await store.getRoomById(req.query.room);
+    if (!room || room.listingId !== listing.id) {
+      req.flash('error', 'Invalid room selected.');
+      return res.redirect('/listing/' + listing.id);
+    }
+  } else if (rooms.length === 1) {
+    room = rooms[0];
+  }
+
+  const nightly = effectiveNightly(listing, room);
+  const totals = computeTotals(nightly, nights);
+  res.render('reserve-confirm', {
+    listing, room, checkin, checkout, guests, nights, nightly,
+    subtotal: totals.subtotal, serviceFee: totals.serviceFee, total: totals.total,
+    firstPhoto: listingFirstPhoto
+  });
+}));
+
+app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing) { req.flash('error', 'That listing could not be found.'); return res.redirect('/'); }
+  if (listing.period !== 'daily' && listing.period !== 'weekly') {
+    return res.redirect('/listing/' + listing.id);
+  }
+  const checkin = req.body.checkin, checkout = req.body.checkout;
+  const guests = Number(req.body.guests) || 1;
+  const nights = nightsBetween(checkin, checkout);
+  if (!checkin || !checkout || !(nights > 0)) {
+    req.flash('error', 'Please choose valid dates.');
+    return res.redirect('/listing/' + listing.id);
+  }
+
+  let room = null;
+  const rooms = await store.getRoomsByListing(listing.id);
+  if (req.body.roomId) {
+    room = await store.getRoomById(req.body.roomId);
+    if (!room || room.listingId !== listing.id) {
+      req.flash('error', 'Invalid room.'); return res.redirect('/listing/' + listing.id);
+    }
+  } else if (rooms.length === 1) {
+    room = rooms[0];
+  } else if (rooms.length > 1) {
+    req.flash('error', 'Please choose a room.');
+    return res.redirect('/listing/' + listing.id + '/reserve?checkin=' +
+      encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
+  }
+
+  const nightly = effectiveNightly(listing, room);
+  const { subtotal, serviceFee, total } = computeTotals(nightly, nights);
+  const u = req.session.user;
+  const bookingId = nanoid(10);
+
+  await store.createBooking({
+    id: bookingId,
+    listingId: listing.id,
+    listingTitle: listing.title,
+    name: u.fullName,
+    phone: u.phone || '',
+    roomId: room ? room.id : null,
+    checkinDate: checkin,
+    checkoutDate: checkout,
+    guests,
+    nightlyRate: nightly,
+    nights,
+    subtotal, serviceFee, total,
+    status: 'pending',
+    paymentStatus: 'pending',
+    chapaTxRef: 'algaale-' + bookingId,
+    createdAt: Date.now()
+  });
+
+  // PHASE 3: no real charge yet. Phase 4 will replace this redirect with a
+  // Chapa initialize() call + redirect to the Chapa checkout URL.
+  res.redirect('/booking/' + bookingId + '/success');
+}));
+
+app.get('/booking/:id/success', requireUser, wrap(async (req, res) => {
+  const booking = await store.getBookingById(req.params.id);
+  if (!booking) { req.flash('error', 'Booking not found.'); return res.redirect('/'); }
+  const listing = await store.getListingById(booking.listingId);
+  res.render('booking-success', { booking, listing });
 }));
 
 app.post('/listing/:id/review', requireUser, wrap(async (req, res) => {
