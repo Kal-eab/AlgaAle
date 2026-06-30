@@ -125,6 +125,83 @@
       </form>
     <% }); }) %>
   <% } %>
+
+  <% if (editing) { %>
+  <section class="panel" style="margin-top:24px;">
+    <h3>Rooms &amp; bed options</h3>
+    <p class="muted">
+      Add the bookable rooms or beds in this place (e.g. "Queen pod", "Bunk bed").
+      Guests booking a Daily or Weekly stay choose from these. If this is a single
+      room/bed, leave it empty — it'll be booked as one unit at the listing price.
+    </p>
+
+    <% if (rooms && rooms.length) { %>
+      <% rooms.forEach(function(rm){ %>
+        <div class="panel" style="display:flex;gap:14px;align-items:flex-start;margin-bottom:14px;">
+          <div style="flex:0 0 90px;">
+            <% if (rm.photo) { %>
+              <img src="<%= rm.photo %>" alt="" style="width:90px;height:70px;object-fit:cover;border-radius:8px;" />
+            <% } else { %>
+              <div style="width:90px;height:70px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#9ca3af;">No photo</div>
+            <% } %>
+          </div>
+          <form action="/provider/listings/<%= listing.id %>/rooms/<%= rm.id %>" method="POST"
+                enctype="multipart/form-data" style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+            <div class="field" style="grid-column:1 / -1;">
+              <label>Room name</label>
+              <input type="text" name="name" value="<%= rm.name %>" required />
+            </div>
+            <div class="field">
+              <label>Capacity (guests)</label>
+              <input type="number" name="capacity" min="1" value="<%= rm.capacity %>" />
+            </div>
+            <div class="field">
+              <label>Nightly rate (birr)</label>
+              <input type="number" name="nightlyRate" min="0" step="50" value="<%= rm.nightlyRate %>" />
+            </div>
+            <div class="field" style="grid-column:1 / -1;">
+              <label>Replace photo (optional)</label>
+              <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
+            </div>
+            <div style="grid-column:1 / -1;">
+              <button type="submit" class="btn btn-sm btn-primary">Save room</button>
+            </div>
+          </form>
+          <form action="/provider/listings/<%= listing.id %>/rooms/<%= rm.id %>/delete" method="POST"
+                onsubmit="return confirm('Remove this room?')">
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </div>
+      <% }) %>
+    <% } else { %>
+      <p class="muted">No rooms added yet — this listing will be booked as a single unit.</p>
+    <% } %>
+
+    <h4 style="margin-top:18px;">Add a room</h4>
+    <form action="/provider/listings/<%= listing.id %>/rooms" method="POST"
+          enctype="multipart/form-data" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;max-width:560px;">
+      <div class="field" style="grid-column:1 / -1;">
+        <label>Room name *</label>
+        <input type="text" name="name" placeholder="e.g. Queen pod" required />
+      </div>
+      <div class="field">
+        <label>Capacity (guests)</label>
+        <input type="number" name="capacity" min="1" value="1" />
+      </div>
+      <div class="field">
+        <label>Nightly rate (birr) *</label>
+        <input type="number" name="nightlyRate" min="0" step="50" required />
+      </div>
+      <div class="field" style="grid-column:1 / -1;">
+        <label>Photo (optional)</label>
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
+      </div>
+      <div style="grid-column:1 / -1;">
+        <button type="submit" class="btn btn-primary">Add room</button>
+      </div>
+    </form>
+  </section>
+  <% } %>
 </div>
 
 <%- include('../partials/footer') %>

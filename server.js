@@ -468,7 +468,7 @@ app.get('/provider', requireProvider, wrap(async (req, res) => {
 }));
 
 app.get('/provider/listings/new', requireProvider, (req, res) => {
-  res.render('provider/listing-form', { listing: null });
+  res.render('provider/listing-form', { listing: null, rooms: [] });
 });
 
 app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
@@ -503,7 +503,8 @@ app.get('/provider/listings/:id/edit', requireProvider, wrap(async (req, res) =>
     req.flash('error', 'Listing not found or you do not have permission to edit it.');
     return res.redirect('/provider');
   }
-  res.render('provider/listing-form', { listing });
+  const rooms = await store.getRoomsByListing(listing.id);
+  res.render('provider/listing-form', { listing, rooms });
 }));
 
 app.post('/provider/listings/:id', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
@@ -550,6 +551,69 @@ app.post('/provider/listings/:id/photo/delete', requireProvider, wrap(async (req
       // Photo stored on Cloudinary - no local deletion needed
       await store.updateListingPhotos(req.params.id, photos);
     }
+  }
+  res.redirect('/provider/listings/' + req.params.id + '/edit');
+}));
+
+// --- Rooms (room/bed options under a listing) ---
+app.post('/provider/listings/:id/rooms', requireProvider, upload.single('photo'), wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing || listing.ownerId !== req.session.user.id) {
+    req.flash('error', 'Listing not found or access denied.');
+    return res.redirect('/provider');
+  }
+  const b = req.body;
+  if (!b.name) {
+    req.flash('error', 'Room name is required.');
+    return res.redirect('/provider/listings/' + req.params.id + '/edit');
+  }
+  await store.createRoom({
+    id: nanoid(10),
+    listingId: listing.id,
+    name: b.name,
+    capacity: Number(b.capacity) || 1,
+    nightlyRate: Number(b.nightlyRate) || 0,
+    photo: req.file ? req.file.path : null,
+    sortOrder: Number(b.sortOrder) || 0,
+    createdAt: Date.now()
+  });
+  req.flash('success', 'Room added.');
+  res.redirect('/provider/listings/' + req.params.id + '/edit');
+}));
+
+app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single('photo'), wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing || listing.ownerId !== req.session.user.id) {
+    req.flash('error', 'Listing not found or access denied.');
+    return res.redirect('/provider');
+  }
+  const room = await store.getRoomById(req.params.roomId);
+  if (!room || room.listingId !== listing.id) {
+    req.flash('error', 'Room not found.');
+    return res.redirect('/provider/listings/' + req.params.id + '/edit');
+  }
+  const b = req.body;
+  await store.updateRoom(room.id, {
+    name: b.name || room.name,
+    capacity: Number(b.capacity) || room.capacity,
+    nightlyRate: Number(b.nightlyRate) || room.nightlyRate,
+    photo: req.file ? req.file.path : room.photo,
+    sortOrder: Number(b.sortOrder) || room.sortOrder
+  });
+  req.flash('success', 'Room updated.');
+  res.redirect('/provider/listings/' + req.params.id + '/edit');
+}));
+
+app.post('/provider/listings/:id/rooms/:roomId/delete', requireProvider, wrap(async (req, res) => {
+  const listing = await store.getListingById(req.params.id);
+  if (!listing || listing.ownerId !== req.session.user.id) {
+    req.flash('error', 'Listing not found or access denied.');
+    return res.redirect('/provider');
+  }
+  const room = await store.getRoomById(req.params.roomId);
+  if (room && room.listingId === listing.id) {
+    await store.deleteRoom(room.id);
+    req.flash('success', 'Room removed.');
   }
   res.redirect('/provider/listings/' + req.params.id + '/edit');
 }));
