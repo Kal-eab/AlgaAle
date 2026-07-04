@@ -1,0 +1,228 @@
+<%- include('partials/header', { title: 'Search — AlgaAle' }) %>
+
+<%
+  // Values echoed as hidden inputs so the sticky search bar preserves the
+  // sidebar filters (and the sidebar form preserves the search-bar values).
+  var searchHidden = {
+    sort: filters.sort, minPrice: filters.minPrice, maxPrice: filters.maxPrice,
+    verified: filters.verified, furnished: filters.furnished, wifi: filters.wifi,
+    water: filters.water, parking: filters.parking, near_university: filters.near_university,
+    type: selectedTypes
+  };
+  var activeCount = chips.length;
+%>
+
+<!-- Sticky compact search bar -->
+<section class="search-topbar">
+  <div class="container">
+    <%- include('partials/searchbar', { filters: filters, compact: true, hidden: searchHidden }) %>
+  </div>
+</section>
+
+<!-- Mobile filter pills -->
+<div class="mobile-filterbar">
+  <div class="mfb-scroll">
+    <button type="button" class="pill-btn" data-open-sheet>
+      ⚙ Filters<% if (activeCount) { %> <span class="pill-count"><%= activeCount %></span><% } %>
+    </button>
+    <label class="pill-btn pill-select">Sort
+      <select data-mobile-sort>
+        <option value="recommended" <%= sort==='recommended'?'selected':'' %>>Recommended</option>
+        <option value="price_asc"  <%= sort==='price_asc'?'selected':'' %>>Price low→high</option>
+        <option value="price_desc" <%= sort==='price_desc'?'selected':'' %>>Price high→low</option>
+        <option value="newest"     <%= sort==='newest'?'selected':'' %>>Newest</option>
+        <option value="verified"   <%= sort==='verified'?'selected':'' %>>Verified first</option>
+      </select>
+    </label>
+    <button type="button" class="pill-btn pill-toggle <%= filters.verified?'is-on':'' %>" data-toggle-param="verified">Verified</button>
+    <button type="button" class="pill-btn pill-toggle <%= filters.furnished?'is-on':'' %>" data-toggle-param="furnished">Furnished</button>
+    <button type="button" class="pill-btn pill-toggle <%= filters.wifi?'is-on':'' %>" data-toggle-param="wifi">WiFi</button>
+    <button type="button" class="pill-btn" data-open-sheet>Price ▾</button>
+  </div>
+</div>
+
+<div class="container search-layout">
+
+  <!-- Backdrop for mobile bottom sheet -->
+  <div class="sheet-backdrop" data-sheet-backdrop hidden></div>
+
+  <!-- LEFT: filters (becomes bottom sheet on mobile) -->
+  <aside class="filter-panel" data-filter-panel>
+    <form class="filter-form" id="filterForm" method="GET" action="/search" data-filter-form>
+      <!-- Preserve search-bar values across sidebar submits -->
+      <input type="hidden" name="q"        value="<%= filters.q || '' %>" />
+      <input type="hidden" name="area"     value="<%= filters.area || '' %>" />
+      <input type="hidden" name="period"   value="<%= filters.period || '' %>" />
+      <input type="hidden" name="audience" value="<%= filters.audience || '' %>" />
+      <input type="hidden" name="guests"   value="<%= filters.guests || '' %>" />
+      <input type="hidden" name="checkin"  value="<%= filters.checkin || '' %>" />
+      <input type="hidden" name="checkout" value="<%= filters.checkout || '' %>" />
+      <input type="hidden" name="sort"     value="<%= sort %>" data-sort-hidden />
+
+      <div class="sheet-head">
+        <strong>Filters</strong>
+        <button type="button" class="sheet-close" data-close-sheet aria-label="Close">✕</button>
+      </div>
+
+      <!-- Map teaser -->
+      <div class="map-teaser">
+        <span class="map-pin">📍</span>
+        <span class="map-teaser-text">Show on Map</span>
+        <span class="map-teaser-soon">Coming soon</span>
+      </div>
+
+      <!-- Popular filters -->
+      <div class="filter-group">
+        <h4>Popular filters</h4>
+        <label class="check"><input type="checkbox" name="verified"  data-autofilter <%= filters.verified?'checked':'' %>> Verified only</label>
+        <label class="check"><input type="checkbox" name="furnished" data-autofilter <%= filters.furnished?'checked':'' %>> Furnished</label>
+        <label class="check"><input type="checkbox" name="wifi"      data-autofilter <%= filters.wifi?'checked':'' %>> WiFi</label>
+        <label class="check"><input type="checkbox" name="water"     data-autofilter <%= filters.water?'checked':'' %>> Water available</label>
+        <label class="check"><input type="checkbox" name="parking"   data-autofilter <%= filters.parking?'checked':'' %>> Parking</label>
+        <label class="check"><input type="checkbox" name="audience" value="female" data-autofilter <%= filters.audience==='female'?'checked':'' %>> Female only</label>
+        <label class="check"><input type="checkbox" name="near_university" data-autofilter <%= filters.near_university?'checked':'' %>> Near university</label>
+      </div>
+
+      <!-- Property type -->
+      <div class="filter-group">
+        <h4>Property type</h4>
+        <% [
+             {value:'bed',label:'Single bed'},
+             {value:'shared_room',label:'Shared room'},
+             {value:'guesthouse',label:'Guest house'},
+             {value:'studio',label:'Studio'},
+             {value:'condo',label:'Condominium'}
+           ].forEach(function(t){ %>
+          <label class="check"><input type="checkbox" name="type" value="<%= t.value %>" data-autofilter <%= selectedTypes.indexOf(t.value)>-1?'checked':'' %>> <%= t.label %></label>
+        <% }) %>
+      </div>
+
+      <!-- Budget -->
+      <div class="filter-group">
+        <h4>Budget (birr)</h4>
+        <div class="budget-label">Up to <strong data-budget-label><%= filters.maxPrice ? money(filters.maxPrice) : '20,000+' %></strong></div>
+        <input type="range" name="maxPrice" min="0" max="20000" step="500"
+               value="<%= filters.maxPrice || 20000 %>" data-budget-range data-autofilter class="budget-range" />
+        <input type="hidden" name="minPrice" value="<%= filters.minPrice || '' %>" data-min-price />
+        <div class="budget-quick">
+          <button type="button" class="qbtn" data-range="0-2000">0–2,000</button>
+          <button type="button" class="qbtn" data-range="2000-5000">2,000–5,000</button>
+          <button type="button" class="qbtn" data-range="5000-10000">5,000–10,000</button>
+          <button type="button" class="qbtn" data-range="10000-">10,000+</button>
+        </div>
+      </div>
+
+      <div class="sheet-foot">
+        <a href="/search" class="sheet-reset">Reset</a>
+        <button type="submit" class="btn btn-primary sheet-apply">Apply filters<% if (activeCount) { %> (<%= activeCount %>)<% } %></button>
+      </div>
+    </form>
+  </aside>
+
+  <!-- RIGHT: results -->
+  <section class="results-col">
+    <div class="results-topline">
+      <h1 class="results-count"><%= listings.length %> place<%= listings.length===1?'':'s' %> found</h1>
+      <label class="sort-select">Sort:
+        <select name="sort" form="filterForm" data-desktop-sort>
+          <option value="recommended" <%= sort==='recommended'?'selected':'' %>>Recommended</option>
+          <option value="price_asc"  <%= sort==='price_asc'?'selected':'' %>>Price low→high</option>
+          <option value="price_desc" <%= sort==='price_desc'?'selected':'' %>>Price high→low</option>
+          <option value="newest"     <%= sort==='newest'?'selected':'' %>>Newest</option>
+          <option value="verified"   <%= sort==='verified'?'selected':'' %>>Verified first</option>
+        </select>
+      </label>
+    </div>
+
+    <% if (chips.length) { %>
+      <div class="active-chips">
+        <% chips.forEach(function(c){ %>
+          <a class="fchip" href="<%= c.url %>"><%= c.label %> <span class="fchip-x">✕</span></a>
+        <% }) %>
+        <a class="fchip fchip-clear" href="/search">Clear all</a>
+      </div>
+    <% } %>
+
+    <!-- Skeletons (shown by JS during navigation) -->
+    <div class="skeletons" data-skeletons hidden>
+      <% for (var s=0; s<3; s++) { %>
+        <div class="skeleton-card"><div class="sk-media"></div><div class="sk-lines"><span></span><span></span><span></span></div></div>
+      <% } %>
+    </div>
+
+    <% if (listings.length === 0) { %>
+      <div class="empty-state">
+        <svg width="120" height="120" viewBox="0 0 120 120" fill="none" aria-hidden="true">
+          <circle cx="60" cy="60" r="56" fill="#ccfbf1"/>
+          <path d="M40 74c0-11 9-20 20-20s20 9 20 20" stroke="#0f766e" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="50" cy="50" r="4" fill="#0f766e"/><circle cx="70" cy="50" r="4" fill="#0f766e"/>
+        </svg>
+        <h3>No places match your search</h3>
+        <p class="muted">Try removing some filters to see more homes.</p>
+        <a href="/search" class="btn btn-primary">Reset filters</a>
+      </div>
+    <% } else { %>
+      <div class="results-list" data-results>
+        <% listings.forEach(function(l){
+             var photos = listingPhotos(l);
+             var multi = photos.length > 1;
+        %>
+          <article class="rcard">
+            <div class="rcard-media">
+              <div class="carousel" data-carousel>
+                <div class="carousel-track" data-track>
+                  <% if (photos.length) { photos.forEach(function(p){ %>
+                    <div class="carousel-slide"><img src="<%= p %>" alt="<%= l.title %>" loading="lazy" /></div>
+                  <% }); } else { %>
+                    <div class="carousel-slide"><img src="/placeholder.svg?text=<%= encodeURIComponent(C.typeLabel(l.type)) %>" alt="<%= l.title %>" /></div>
+                  <% } %>
+                </div>
+                <% if (multi) { %>
+                  <button type="button" class="carousel-nav prev" data-prev aria-label="Previous photo">‹</button>
+                  <button type="button" class="carousel-nav next" data-next aria-label="Next photo">›</button>
+                  <div class="carousel-dots" data-dots>
+                    <% photos.forEach(function(p, di){ %><span class="dot <%= di===0?'is-active':'' %>"></span><% }) %>
+                  </div>
+                <% } %>
+              </div>
+              <div class="rcard-ribbons">
+                <% if (l.featured) { %><span class="ribbon ribbon-featured">★ Featured</span><% } %>
+                <% if (l.verified) { %><span class="ribbon ribbon-verified">✅ Verified</span><% } %>
+              </div>
+              <button type="button" class="rcard-save" data-save="<%= l.id %>" aria-label="Save">♡</button>
+            </div>
+
+            <div class="rcard-main">
+              <h3 class="rcard-title"><a href="/listing/<%= l.id %>"><%= l.title %></a></h3>
+              <div class="rcard-sub">
+                <% if (l.verified) { %><span class="rcard-verified">✅ Verified host</span><% } %>
+                <% if (reviewCounts[l.id]) { %><span class="rcard-reviews">★ <%= reviewCounts[l.id] %> review<%= reviewCounts[l.id]===1?'':'s' %></span><% } %>
+              </div>
+              <div class="rcard-loc">📍 <%= l.area %></div>
+              <div class="rcard-landmark"><%= C.typeLabel(l.type) %></div>
+              <div class="rcard-tags">
+                <% if (l.audience && l.audience !== 'any') { %><span class="tag"><%= C.audienceLabel(l.audience) %></span><% } %>
+                <% if (l.furnished) { %><span class="tag">Furnished</span><% } %>
+                <% if (l.wifi) { %><span class="tag">WiFi</span><% } %>
+                <% if (l.water) { %><span class="tag">Water</span><% } %>
+                <% if (l.parking) { %><span class="tag">Parking</span><% } %>
+              </div>
+              <a href="#map" class="rcard-maplink">Show on Map</a>
+            </div>
+
+            <div class="rcard-price">
+              <div class="price-big"><%= money(l.price) %> birr</div>
+              <div class="price-period">/ <%= C.periodLabel(l.period).toLowerCase() %></div>
+              <div class="price-fees muted">Incl. all fees</div>
+              <a class="btn btn-primary" href="/listing/<%= l.id %>">View details →</a>
+            </div>
+          </article>
+        <% }) %>
+      </div>
+    <% } %>
+  </section>
+</div>
+
+<script src="/js/search.js" defer></script>
+
+<%- include('partials/footer') %>

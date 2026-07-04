@@ -206,6 +206,45 @@ function listingFirstPhoto(l) {
   return null;
 }
 
+// All photos across every category, flattened into one array (for the carousel).
+function listingPhotos(l) {
+  const out = [];
+  C.PHOTO_CATEGORIES.forEach((cat) => {
+    if (l.photos && l.photos[cat] && l.photos[cat].length) {
+      l.photos[cat].forEach((p) => out.push(p));
+    }
+  });
+  return out;
+}
+
+// Query params that mean "the user is filtering" — used to redirect legacy
+// bookmarked `/?area=…` URLs to the new `/search` page.
+const SEARCH_PARAM_KEYS = [
+  'q', 'area', 'type', 'period', 'audience', 'minPrice', 'maxPrice',
+  'furnished', 'wifi', 'water', 'parking', 'verified', 'near_university',
+  'sort', 'checkin', 'checkout', 'guests'
+];
+
+// Areas featured in the home "Popular in Addis Ababa" strip.
+const POPULAR_AREAS = ['Bole', 'Piassa', 'Kazanchis', 'Gerji'];
+
+// Rebuild a /search URL from the current query, optionally dropping one param
+// (or one value of a multi-value param). Used to render removable filter chips.
+function buildSearchUrl(query, omitKey, omitValue) {
+  const params = new URLSearchParams();
+  Object.keys(query).forEach((k) => {
+    const raw = query[k];
+    const values = Array.isArray(raw) ? raw : [raw];
+    values.forEach((v) => {
+      if (v === undefined || v === '') return;
+      if (k === omitKey && (omitValue === undefined || String(v) === String(omitValue))) return;
+      params.append(k, v);
+    });
+  });
+  const qs = params.toString();
+  return '/search' + (qs ? '?' + qs : '');
+}
+
 function effectiveNightly(listing, room) {
   if (room) return Number(room.nightlyRate) || 0;
   return listing.period === 'weekly'
@@ -231,43 +270,119 @@ function computeTotals(nightly, nights) {
 // PUBLIC: HOME
 // ===========================================================================
 app.get('/', wrap(async (req, res) => {
+  // Legacy bookmarked filter URLs (/?area=Bole …) → the new results page.
+  const hasFilter = SEARCH_PARAM_KEYS.some(
+    (k) => req.query[k] !== undefined && req.query[k] !== ''
+  );
+  if (hasFilter) {
+    const qIndex = req.originalUrl.indexOf('?');
+    return res.redirect(302, '/search' + (qIndex >= 0 ? req.originalUrl.slice(qIndex) : ''));
+  }
+
+  let listings = await store.getListings();
+  listings = listings.filter((l) => l.status !== 'hidden');
+
+  const score = (l) => (l.featured ? 2 : 0) + (l.verified ? 1 : 0);
+  const byRecommended = (a, b) => (score(b) - score(a)) || (b.createdAt - a.createdAt);
+
+  const popular = POPULAR_AREAS
+    .map((area) => ({
+      area,
+      listings: listings.filter((l) => l.area === area).sort(byRecommended).slice(0, 4)
+    }))
+    .filter((g) => g.listings.length > 0);
+
+  const reviewCounts = await store.getReviewCountsByListing();
+
+  res.render('index', {
+    filters: {},
+    popular,
+    firstPhoto: listingFirstPhoto,
+    reviewCounts
+  });
+}));
+
+// ===========================================================================
+// PUBLIC: SEARCH RESULTS
+// ===========================================================================
+app.get('/search', wrap(async (req, res) => {
   const f = req.query;
   let listings = await store.getListings();
   listings = listings.filter((l) => l.status !== 'hidden');
 
   if (f.q) {
-    const q = f.q.toLowerCase();
+    const q = String(f.q).toLowerCase();
     listings = listings.filter((l) =>
       l.title.toLowerCase().includes(q) ||
       (l.description || '').toLowerCase().includes(q) ||
       l.area.toLowerCase().includes(q)
     );
   }
-  if (f.area)     listings = listings.filter((l) => l.area     === f.area);
-  if (f.type)     listings = listings.filter((l) => l.type     === f.type);
+  if (f.area) listings = listings.filter((l) => l.area === f.area);
+
+  // `type` may arrive as a single value or an array (multiple checkboxes).
+  const selectedTypes = [].concat(f.type || []).filter(Boolean);
+  if (selectedTypes.length) listings = listings.filter((l) => selectedTypes.includes(l.type));
+
+  // `audience` can arrive twice (hidden field + "Female only" checkbox share the
+  // name) — collapse to the last value so the checkbox wins.
+  if (Array.isArray(f.audience)) f.audience = f.audience[f.audience.length - 1];
+
   if (f.period)   listings = listings.filter((l) => l.period   === f.period);
   if (f.audience) listings = listings.filter((l) => l.audience === f.audience);
+  if (f.minPrice) listings = listings.filter((l) => Number(l.price) >= Number(f.minPrice));
   if (f.maxPrice) listings = listings.filter((l) => Number(l.price) <= Number(f.maxPrice));
   ['furnished', 'wifi', 'water', 'parking'].forEach((a) => {
     if (f[a]) listings = listings.filter((l) => l[a]);
   });
   if (f.verified) listings = listings.filter((l) => l.verified);
+  if (f.near_university) {
+    listings = listings.filter((l) => {
+      const t = (l.title + ' ' + (l.description || '')).toLowerCase();
+      return t.includes('university') || t.includes('campus') || t.includes('college');
+    });
+  }
 
+  const score = (l) => (l.featured ? 2 : 0) + (l.verified ? 1 : 0);
+  const sort = f.sort || 'recommended';
   listings.sort((a, b) => {
-    const score = (l) => (l.featured ? 2 : 0) + (l.verified ? 1 : 0);
-    if (score(b) !== score(a)) return score(b) - score(a);
-    return b.createdAt - a.createdAt;
+    switch (sort) {
+      case 'price_asc':  return Number(a.price) - Number(b.price);
+      case 'price_desc': return Number(b.price) - Number(a.price);
+      case 'newest':     return b.createdAt - a.createdAt;
+      case 'verified':   return (Number(!!b.verified) - Number(!!a.verified)) || (b.createdAt - a.createdAt);
+      default:           return (score(b) - score(a)) || (b.createdAt - a.createdAt);
+    }
   });
 
-  const reviewCounts = await store.getReviewCountsByListing();
-  const all = await store.getListings();
+  // Removable active-filter chips: each links to the same URL minus that param.
+  const money = res.locals.money;
+  const amenityLabel = (k) => (C.AMENITIES.find((a) => a.key === k) || {}).label || k;
+  const chips = [];
+  if (f.q)        chips.push({ label: '“' + f.q + '”', url: buildSearchUrl(f, 'q') });
+  if (f.area)     chips.push({ label: f.area, url: buildSearchUrl(f, 'area') });
+  selectedTypes.forEach((t) => chips.push({ label: C.typeLabel(t), url: buildSearchUrl(f, 'type', t) }));
+  if (f.period)   chips.push({ label: C.periodLabel(f.period), url: buildSearchUrl(f, 'period') });
+  if (f.audience) chips.push({ label: C.audienceLabel(f.audience), url: buildSearchUrl(f, 'audience') });
+  if (f.minPrice) chips.push({ label: 'From ' + money(f.minPrice) + ' birr', url: buildSearchUrl(f, 'minPrice') });
+  if (f.maxPrice) chips.push({ label: 'Under ' + money(f.maxPrice) + ' birr', url: buildSearchUrl(f, 'maxPrice') });
+  ['furnished', 'wifi', 'water', 'parking'].forEach((a) => {
+    if (f[a]) chips.push({ label: amenityLabel(a), url: buildSearchUrl(f, a) });
+  });
+  if (f.verified)        chips.push({ label: 'Verified', url: buildSearchUrl(f, 'verified') });
+  if (f.near_university) chips.push({ label: 'Near university', url: buildSearchUrl(f, 'near_university') });
 
-  res.render('index', {
+  const reviewCounts = await store.getReviewCountsByListing();
+
+  res.render('search', {
     listings,
     filters: f,
+    selectedTypes,
+    sort,
+    chips,
     firstPhoto: listingFirstPhoto,
-    reviewCounts,
-    total: all.length
+    listingPhotos,
+    reviewCounts
   });
 }));
 

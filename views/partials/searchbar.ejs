@@ -1,0 +1,93 @@
+<%
+  var f = (typeof filters !== 'undefined' && filters) ? filters : {};
+  var compact = (typeof compact !== 'undefined') && compact;
+  var isDaily = f.period === 'daily';
+%>
+<form class="searchbar <%= compact ? 'searchbar-compact' : '' %> <%= isDaily ? 'is-daily' : '' %>"
+      action="/search" method="GET" autocomplete="off" data-searchbar
+      data-areas="<%= C.AREAS.join('|') %>">
+
+  <!-- 1. LOCATION -->
+  <div class="sb-seg sb-location">
+    <span class="sb-icon" aria-hidden="true">📍</span>
+    <div class="sb-field">
+      <span class="sb-label">Location</span>
+      <input type="text" name="q" class="sb-input" data-sb-q
+             placeholder="Where in Addis? e.g. Bole, Piassa"
+             value="<%= f.q || f.area || '' %>" />
+      <input type="hidden" name="area" data-sb-area value="<%= f.area || '' %>" />
+      <div class="sb-popover sb-autocomplete" data-sb-autocomplete hidden></div>
+    </div>
+  </div>
+
+  <!-- 2. RENTAL TERM -->
+  <div class="sb-seg sb-term" data-sb-term>
+    <span class="sb-icon" aria-hidden="true">📅</span>
+    <div class="sb-field">
+      <span class="sb-label">Rental term</span>
+      <button type="button" class="sb-trigger" data-sb-term-trigger aria-haspopup="true" aria-expanded="false">
+        <span data-sb-term-label><%= C.periodLabel(f.period || 'monthly') %></span> <span class="sb-caret">▾</span>
+      </button>
+      <input type="hidden" name="period" data-sb-period value="<%= f.period || 'monthly' %>" />
+
+      <!-- Daily date range (shown only when term = Daily) -->
+      <div class="sb-dates" data-sb-dates>
+        <label>In <input type="date" name="checkin"  data-sb-checkin  value="<%= f.checkin  || '' %>" /></label>
+        <label>Out <input type="date" name="checkout" data-sb-checkout value="<%= f.checkout || '' %>" /></label>
+      </div>
+
+      <div class="sb-popover sb-term-popover" data-sb-term-popover hidden>
+        <% C.PERIODS.forEach(function(p){ %>
+          <button type="button" class="sb-opt <%= (f.period || 'monthly') === p.value ? 'is-active' : '' %>"
+                  data-period="<%= p.value %>"><%= p.label %></button>
+        <% }) %>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. WHO -->
+  <div class="sb-seg sb-who" data-sb-who>
+    <span class="sb-icon" aria-hidden="true">👤</span>
+    <div class="sb-field">
+      <span class="sb-label">Who</span>
+      <button type="button" class="sb-trigger" data-sb-who-trigger aria-haspopup="true" aria-expanded="false">
+        <span data-sb-who-label><%= (f.guests || 1) %> <%= Number(f.guests || 1) === 1 ? 'person' : 'people' %><%= f.audience ? ' · ' + C.audienceLabel(f.audience) : '' %></span> <span class="sb-caret">▾</span>
+      </button>
+      <input type="hidden" name="guests" data-sb-guests value="<%= f.guests || 1 %>" />
+
+      <div class="sb-popover sb-who-popover" data-sb-who-popover hidden>
+        <div class="sb-stepper">
+          <span>Guests</span>
+          <div class="sb-stepper-controls">
+            <button type="button" class="sb-step" data-sb-guest-minus aria-label="Fewer guests">−</button>
+            <span data-sb-guest-count><%= f.guests || 1 %></span>
+            <button type="button" class="sb-step" data-sb-guest-plus aria-label="More guests">+</button>
+          </div>
+        </div>
+        <label class="sb-suitable">
+          <span>Suitable for</span>
+          <select name="audience" data-sb-audience>
+            <option value="">Anyone</option>
+            <% C.AUDIENCES.forEach(function(a){ if (a.value !== 'any') { %>
+              <option value="<%= a.value %>" <%= f.audience === a.value ? 'selected' : '' %>><%= a.label %></option>
+            <% } }) %>
+          </select>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- Preserved sidebar filters (so re-searching keeps them) -->
+  <% if (typeof hidden !== 'undefined' && hidden) {
+       Object.keys(hidden).forEach(function(k){
+         var vals = Array.isArray(hidden[k]) ? hidden[k] : [hidden[k]];
+         vals.forEach(function(v){ if (v !== undefined && v !== '' && v !== null) { %>
+    <input type="hidden" name="<%= k %>" value="<%= v %>" />
+  <%   } }); }); } %>
+
+  <!-- 4. SEARCH -->
+  <button type="submit" class="sb-submit">
+    <span class="sb-submit-icon" aria-hidden="true">🔍</span>
+    <span class="sb-submit-text">Search</span>
+  </button>
+</form>
