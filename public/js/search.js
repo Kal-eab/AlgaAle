@@ -28,7 +28,8 @@
       openPopover = pop;
     }
 
-    // --- Location autocomplete ---
+    // --- Location autocomplete (Trip.com style: popular areas on focus,
+    //     highlighted matches while typing) ---
     var qInput   = $('[data-sb-q]', bar);
     var areaHid  = $('[data-sb-area]', bar);
     var acBox    = $('[data-sb-autocomplete]', bar);
@@ -85,9 +86,9 @@
     var termPop     = $('[data-sb-term-popover]', bar);
     var termLabel   = $('[data-sb-term-label]', bar);
     var periodHid   = $('[data-sb-period]', bar);
-    var dates       = $('[data-sb-dates]', bar);
     var checkin     = $('[data-sb-checkin]', bar);
     var checkout    = $('[data-sb-checkout]', bar);
+    var calBox      = $('[data-sb-calendar]', bar);
 
     function refreshTerm() {
       var val = periodHid.value || 'monthly';
@@ -109,7 +110,12 @@
       return 'Daily';
     }
     if (termTrigger && termPop) {
-      termTrigger.addEventListener('click', function (e) { e.stopPropagation(); toggle(termPop, termTrigger); });
+      termTrigger.addEventListener('click', function (e) {
+        e.stopPropagation();
+        // When Daily is already active, the segment IS the date picker
+        if (periodHid.value === 'daily' && calBox) { openCalendar(); return; }
+        toggle(termPop, termTrigger);
+      });
       termPop.addEventListener('click', function (e) {
         var b = e.target.closest('[data-period]');
         if (!b) return;
@@ -117,19 +123,124 @@
         $$('.sb-opt', termPop).forEach(function (o) { o.classList.remove('is-active'); });
         b.classList.add('is-active');
         refreshTerm();
-        closeAll();
+        // Daily → go straight to the check-in/check-out calendar
+        if (periodHid.value === 'daily' && calBox) openCalendar();
+        else closeAll();
       });
-      if (checkin)  checkin.addEventListener('change', function () {
-        // check-out can never be on/before check-in
-        if (checkout && checkin.value) {
-          var next = new Date(checkin.value); next.setDate(next.getDate() + 1);
-          checkout.min = next.toISOString().slice(0, 10);
-          if (checkout.value && checkout.value <= checkin.value) checkout.value = '';
-        }
-        clearDateError(); refreshTerm();
-      });
-      if (checkout) checkout.addEventListener('change', function () { clearDateError(); refreshTerm(); });
       refreshTerm();
+    }
+
+    // --- Trip.com-style range calendar (Daily term) ---
+    // First click = check-in, second click = check-out; the stay is
+    // highlighted and the night count is computed live.
+    var calView = null;   // first day of the left visible month
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function isoDate(d) { return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()); }
+    function fromIso(s) { var p = s.split('-'); return new Date(+p[0], +p[1] - 1, +p[2]); }
+    function nightsCount() {
+      if (!checkin.value || !checkout.value) return 0;
+      return Math.max(0, Math.round((fromIso(checkout.value) - fromIso(checkin.value)) / 86400000));
+    }
+
+    function openCalendar() {
+      if (!calBox) return;
+      closeAll();
+      renderCal();
+      calBox.hidden = false;
+      if (termTrigger) termTrigger.setAttribute('aria-expanded', 'true');
+      openPopover = calBox;
+    }
+
+    function renderCal() {
+      var today = new Date(); today.setHours(0, 0, 0, 0);
+      if (!calView) {
+        var base = checkin.value ? fromIso(checkin.value) : new Date();
+        calView = new Date(base.getFullYear(), base.getMonth(), 1);
+      }
+      var ci = checkin.value, co = checkout.value;
+      var hint = !ci ? 'Select your check-in date'
+        : !co ? 'Please select a check-out date'
+        : daySummary();
+
+      var html =
+        '<div class="sb-cal-terms">' +
+          ['daily', 'weekly', 'monthly'].map(function (t) {
+            return '<button type="button" class="sb-cal-term ' + (periodHid.value === t ? 'is-active' : '') + '" data-cal-term="' + t + '">' +
+              t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
+          }).join('') +
+        '</div>' +
+        '<div class="sb-cal-top">' +
+          '<button type="button" class="sb-cal-nav" data-cal-prev aria-label="Previous month">&#8249;</button>' +
+          '<span class="sb-cal-hint">' + hint + '</span>' +
+          '<button type="button" class="sb-cal-nav" data-cal-next aria-label="Next month">&#8250;</button>' +
+        '</div><div class="sb-cal-months">';
+
+      for (var m = 0; m < 2; m++) {
+        var first = new Date(calView.getFullYear(), calView.getMonth() + m, 1);
+        html += '<div class="sb-cal-month"><div class="sb-cal-title">' +
+          first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }) +
+          '</div><div class="sb-cal-grid">';
+        ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(function (w) { html += '<span class="sb-cal-wd">' + w + '</span>'; });
+        for (var b = 0; b < first.getDay(); b++) html += '<span></span>';
+        var days = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+        for (var d = 1; d <= days; d++) {
+          var dt = new Date(first.getFullYear(), first.getMonth(), d);
+          var s = isoDate(dt);
+          var cls = 'sb-cal-day';
+          var past = dt < today;
+          if (past) cls += ' is-disabled';
+          if (s === ci) cls += ' is-checkin';
+          if (s === co) cls += ' is-checkout';
+          if (ci && co && s > ci && s < co) cls += ' in-range';
+          html += '<button type="button" class="' + cls + '" data-cal-day="' + s + '"' + (past ? ' disabled' : '') + '>' + d + '</button>';
+        }
+        html += '</div></div>';
+      }
+
+      var nights = nightsCount();
+      html += '</div><div class="sb-cal-foot">' +
+        '<button type="button" class="sb-cal-clear" data-cal-clear>Clear dates</button>' +
+        '<button type="button" class="sb-cal-done" data-cal-done' + ((ci && co) ? '' : ' disabled') + '>' +
+          ((ci && co) ? 'Done · ' + nights + ' night' + (nights === 1 ? '' : 's') : 'Done') +
+        '</button></div>';
+
+      calBox.innerHTML = html;
+    }
+
+    if (calBox) {
+      calBox.addEventListener('click', function (e) {
+        e.stopPropagation();
+        var day = e.target.closest('[data-cal-day]');
+        if (day && !day.disabled) {
+          var s = day.getAttribute('data-cal-day');
+          if (!checkin.value || (checkin.value && checkout.value)) {
+            // fresh pick (or re-pick after a completed range): set check-in
+            checkin.value = s; checkout.value = '';
+          } else if (s > checkin.value) {
+            checkout.value = s;
+          } else {
+            // clicked on/before the current check-in: restart from there
+            checkin.value = s; checkout.value = '';
+          }
+          clearDateError(); refreshTerm(); renderCal();
+          return;
+        }
+        var term = e.target.closest('[data-cal-term]');
+        if (term) {
+          periodHid.value = term.getAttribute('data-cal-term');
+          $$('.sb-opt', termPop).forEach(function (o) {
+            o.classList.toggle('is-active', o.getAttribute('data-period') === periodHid.value);
+          });
+          refreshTerm();
+          if (periodHid.value === 'daily') renderCal(); else closeAll();
+          return;
+        }
+        if (e.target.closest('[data-cal-prev]')) { calView = new Date(calView.getFullYear(), calView.getMonth() - 1, 1); renderCal(); return; }
+        if (e.target.closest('[data-cal-next]')) { calView = new Date(calView.getFullYear(), calView.getMonth() + 1, 1); renderCal(); return; }
+        if (e.target.closest('[data-cal-clear]')) { checkin.value = ''; checkout.value = ''; refreshTerm(); renderCal(); return; }
+        if (e.target.closest('[data-cal-done]')) { if (checkin.value && checkout.value) closeAll(); }
+      });
     }
 
     // --- Daily-term date validation: don't search without both dates ---
@@ -137,12 +248,10 @@
 
     function clearDateError() {
       if (dateError) dateError.hidden = true;
-      if (checkin)  checkin.classList.remove('is-invalid');
-      if (checkout) checkout.classList.remove('is-invalid');
     }
-    function showDateError(msg, field) {
+    function showDateError(msg) {
       if (dateError) { dateError.textContent = msg; dateError.hidden = false; }
-      if (field) { field.classList.add('is-invalid'); field.focus(); }
+      openCalendar();   // put the user right where they can fix it
     }
 
     // --- Who popover + guest stepper ---

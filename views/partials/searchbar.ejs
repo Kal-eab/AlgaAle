@@ -30,11 +30,9 @@
       </button>
       <input type="hidden" name="period" data-sb-period value="<%= f.period || 'monthly' %>" />
 
-      <!-- Daily date range (shown only when term = Daily) -->
-      <div class="sb-dates" data-sb-dates>
-        <label>In <input type="date" name="checkin"  data-sb-checkin  value="<%= f.checkin  || '' %>" /></label>
-        <label>Out <input type="date" name="checkout" data-sb-checkout value="<%= f.checkout || '' %>" /></label>
-      </div>
+      <!-- Daily stay dates (picked in the calendar popover, Trip.com style) -->
+      <input type="hidden" name="checkin"  data-sb-checkin  value="<%= f.checkin  || '' %>" />
+      <input type="hidden" name="checkout" data-sb-checkout value="<%= f.checkout || '' %>" />
       <span class="sb-date-error" data-sb-date-error hidden></span>
 
       <div class="sb-popover sb-term-popover" data-sb-term-popover hidden>
@@ -43,6 +41,8 @@
                   data-period="<%= p.value %>"><%= p.label %></button>
         <% }) %>
       </div>
+
+      <div class="sb-popover sb-calendar" data-sb-calendar hidden></div>
     </div>
   </div>
 
