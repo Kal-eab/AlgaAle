@@ -1,9 +1,8 @@
 <%
   var f = (typeof filters !== 'undefined' && filters) ? filters : {};
   var compact = (typeof compact !== 'undefined') && compact;
-  var isDaily = f.period === 'daily';
 %>
-<form class="searchbar <%= compact ? 'searchbar-compact' : '' %> <%= isDaily ? 'is-daily' : '' %>"
+<form class="searchbar <%= compact ? 'searchbar-compact' : '' %>"
       action="/search" method="GET" autocomplete="off" data-searchbar
       data-areas="<%= C.AREAS.join('|') %>">
 
@@ -20,27 +19,17 @@
     </div>
   </div>
 
-  <!-- 2. RENTAL TERM -->
+  <!-- 2. DATES (check-in → check-out, picked in the calendar popover) -->
   <div class="sb-seg sb-term" data-sb-term>
     <span class="sb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
     <div class="sb-field">
-      <span class="sb-label">Rental term</span>
-      <button type="button" class="sb-trigger" data-sb-term-trigger aria-haspopup="true" aria-expanded="false">
-        <span data-sb-term-label><%= C.periodLabel(f.period || 'monthly') %></span> <span class="sb-caret">▾</span>
+      <span class="sb-label">Check-in → Check-out</span>
+      <button type="button" class="sb-trigger" data-sb-dates-trigger aria-haspopup="true" aria-expanded="false">
+        <span data-sb-dates-label><%= (f.checkin && f.checkout) ? (f.checkin + ' → ' + f.checkout) : 'Add dates' %></span> <span class="sb-caret">▾</span>
       </button>
-      <input type="hidden" name="period" data-sb-period value="<%= f.period || 'monthly' %>" />
-
-      <!-- Daily stay dates (picked in the calendar popover, Trip.com style) -->
       <input type="hidden" name="checkin"  data-sb-checkin  value="<%= f.checkin  || '' %>" />
       <input type="hidden" name="checkout" data-sb-checkout value="<%= f.checkout || '' %>" />
       <span class="sb-date-error" data-sb-date-error hidden></span>
-
-      <div class="sb-popover sb-term-popover" data-sb-term-popover hidden>
-        <% C.PERIODS.forEach(function(p){ %>
-          <button type="button" class="sb-opt <%= (f.period || 'monthly') === p.value ? 'is-active' : '' %>"
-                  data-period="<%= p.value %>"><%= p.label %></button>
-        <% }) %>
-      </div>
 
       <div class="sb-popover sb-calendar" data-sb-calendar hidden></div>
     </div>

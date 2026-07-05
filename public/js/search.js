@@ -8,7 +8,7 @@
   var $$ = function (sel, ctx) { return Array.prototype.slice.call((ctx || document).querySelectorAll(sel)); };
 
   // -----------------------------------------------------------------------
-  // Search bar: popovers, autocomplete, term/daily, guests stepper
+  // Search bar: popovers, autocomplete, dates, guests stepper
   // -----------------------------------------------------------------------
   function initSearchBar(bar) {
     var openPopover = null;
@@ -81,25 +81,13 @@
       });
     }
 
-    // --- Rental term popover ---
-    var termTrigger = $('[data-sb-term-trigger]', bar);
-    var termPop     = $('[data-sb-term-popover]', bar);
-    var termLabel   = $('[data-sb-term-label]', bar);
-    var periodHid   = $('[data-sb-period]', bar);
-    var checkin     = $('[data-sb-checkin]', bar);
-    var checkout    = $('[data-sb-checkout]', bar);
-    var calBox      = $('[data-sb-calendar]', bar);
+    // --- Dates segment: opens the range calendar directly ---
+    var datesTrigger = $('[data-sb-dates-trigger]', bar);
+    var datesLabel   = $('[data-sb-dates-label]', bar);
+    var checkin      = $('[data-sb-checkin]', bar);
+    var checkout     = $('[data-sb-checkout]', bar);
+    var calBox       = $('[data-sb-calendar]', bar);
 
-    function refreshTerm() {
-      var val = periodHid.value || 'monthly';
-      var isDaily = val === 'daily';
-      bar.classList.toggle('is-daily', isDaily);
-      if (isDaily) {
-        termLabel.textContent = daySummary();
-      } else {
-        termLabel.textContent = val.charAt(0).toUpperCase() + val.slice(1);
-      }
-    }
     function daySummary() {
       if (checkin && checkin.value && checkout && checkout.value) {
         var a = new Date(checkin.value), b = new Date(checkout.value);
@@ -107,30 +95,21 @@
         var fmt = function (d) { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); };
         return fmt(a) + ' → ' + fmt(b) + ' · ' + nights + ' night' + (nights === 1 ? '' : 's');
       }
-      return 'Daily';
+      return 'Add dates';
     }
-    if (termTrigger && termPop) {
-      termTrigger.addEventListener('click', function (e) {
+    function refreshDates() {
+      if (datesLabel) datesLabel.textContent = daySummary();
+    }
+    if (datesTrigger && calBox) {
+      datesTrigger.addEventListener('click', function (e) {
         e.stopPropagation();
-        // When Daily is already active, the segment IS the date picker
-        if (periodHid.value === 'daily' && calBox) { openCalendar(); return; }
-        toggle(termPop, termTrigger);
+        if (openPopover === calBox) { closeAll(); return; }
+        openCalendar();
       });
-      termPop.addEventListener('click', function (e) {
-        var b = e.target.closest('[data-period]');
-        if (!b) return;
-        periodHid.value = b.getAttribute('data-period');
-        $$('.sb-opt', termPop).forEach(function (o) { o.classList.remove('is-active'); });
-        b.classList.add('is-active');
-        refreshTerm();
-        // Daily → go straight to the check-in/check-out calendar
-        if (periodHid.value === 'daily' && calBox) openCalendar();
-        else closeAll();
-      });
-      refreshTerm();
+      refreshDates();
     }
 
-    // --- Trip.com-style range calendar (Daily term) ---
+    // --- Trip.com-style range calendar ---
     // First click = check-in, second click = check-out; the stay is
     // highlighted and the night count is computed live.
     var calView = null;   // first day of the left visible month
@@ -148,7 +127,7 @@
       closeAll();
       renderCal();
       calBox.hidden = false;
-      if (termTrigger) termTrigger.setAttribute('aria-expanded', 'true');
+      if (datesTrigger) datesTrigger.setAttribute('aria-expanded', 'true');
       openPopover = calBox;
     }
 
@@ -164,12 +143,6 @@
         : daySummary();
 
       var html =
-        '<div class="sb-cal-terms">' +
-          ['daily', 'weekly', 'monthly'].map(function (t) {
-            return '<button type="button" class="sb-cal-term ' + (periodHid.value === t ? 'is-active' : '') + '" data-cal-term="' + t + '">' +
-              t.charAt(0).toUpperCase() + t.slice(1) + '</button>';
-          }).join('') +
-        '</div>' +
         '<div class="sb-cal-top">' +
           '<button type="button" class="sb-cal-nav" data-cal-prev aria-label="Previous month">&#8249;</button>' +
           '<span class="sb-cal-hint">' + hint + '</span>' +
@@ -223,27 +196,17 @@
             // clicked on/before the current check-in: restart from there
             checkin.value = s; checkout.value = '';
           }
-          clearDateError(); refreshTerm(); renderCal();
-          return;
-        }
-        var term = e.target.closest('[data-cal-term]');
-        if (term) {
-          periodHid.value = term.getAttribute('data-cal-term');
-          $$('.sb-opt', termPop).forEach(function (o) {
-            o.classList.toggle('is-active', o.getAttribute('data-period') === periodHid.value);
-          });
-          refreshTerm();
-          if (periodHid.value === 'daily') renderCal(); else closeAll();
+          clearDateError(); refreshDates(); renderCal();
           return;
         }
         if (e.target.closest('[data-cal-prev]')) { calView = new Date(calView.getFullYear(), calView.getMonth() - 1, 1); renderCal(); return; }
         if (e.target.closest('[data-cal-next]')) { calView = new Date(calView.getFullYear(), calView.getMonth() + 1, 1); renderCal(); return; }
-        if (e.target.closest('[data-cal-clear]')) { checkin.value = ''; checkout.value = ''; refreshTerm(); renderCal(); return; }
+        if (e.target.closest('[data-cal-clear]')) { checkin.value = ''; checkout.value = ''; refreshDates(); renderCal(); return; }
         if (e.target.closest('[data-cal-done]')) { if (checkin.value && checkout.value) closeAll(); }
       });
     }
 
-    // --- Daily-term date validation: don't search without both dates ---
+    // --- Date validation: a half-picked range can't be searched ---
     var dateError = $('[data-sb-date-error]', bar);
 
     function clearDateError() {
@@ -294,22 +257,22 @@
       if (e.key === 'Escape') { closeAll(); if (acBox) acBox.hidden = true; }
     });
     bar.addEventListener('submit', function (e) {
-      if (periodHid && periodHid.value === 'daily') {
-        if (!checkin || !checkin.value) {
-          e.preventDefault();
-          showDateError('Please choose a check-in date.', checkin);
-          return;
-        }
-        if (!checkout || !checkout.value) {
-          e.preventDefault();
-          showDateError('Please choose a check-out date.', checkout);
-          return;
-        }
-        if (checkout.value <= checkin.value) {
-          e.preventDefault();
-          showDateError('Check-out must be after check-in.', checkout);
-          return;
-        }
+      var ci = checkin && checkin.value, co = checkout && checkout.value;
+      // Dates are optional — but a half-picked range is not searchable
+      if (ci && !co) {
+        e.preventDefault();
+        showDateError('Please choose a check-out date.');
+        return;
+      }
+      if (!ci && co) {
+        e.preventDefault();
+        showDateError('Please choose a check-in date.');
+        return;
+      }
+      if (ci && co && co <= ci) {
+        e.preventDefault();
+        showDateError('Check-out must be after check-in.');
+        return;
       }
       clearDateError();
     });
