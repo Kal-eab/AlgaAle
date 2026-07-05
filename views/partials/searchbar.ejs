@@ -9,7 +9,7 @@
 
   <!-- 1. LOCATION -->
   <div class="sb-seg sb-location">
-    <span class="sb-icon" aria-hidden="true">📍</span>
+    <span class="sb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg></span>
     <div class="sb-field">
       <span class="sb-label">Location</span>
       <input type="text" name="q" class="sb-input" data-sb-q
@@ -22,7 +22,7 @@
 
   <!-- 2. RENTAL TERM -->
   <div class="sb-seg sb-term" data-sb-term>
-    <span class="sb-icon" aria-hidden="true">📅</span>
+    <span class="sb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
     <div class="sb-field">
       <span class="sb-label">Rental term</span>
       <button type="button" class="sb-trigger" data-sb-term-trigger aria-haspopup="true" aria-expanded="false">
@@ -35,6 +35,7 @@
         <label>In <input type="date" name="checkin"  data-sb-checkin  value="<%= f.checkin  || '' %>" /></label>
         <label>Out <input type="date" name="checkout" data-sb-checkout value="<%= f.checkout || '' %>" /></label>
       </div>
+      <span class="sb-date-error" data-sb-date-error hidden></span>
 
       <div class="sb-popover sb-term-popover" data-sb-term-popover hidden>
         <% C.PERIODS.forEach(function(p){ %>
@@ -47,7 +48,7 @@
 
   <!-- 3. WHO -->
   <div class="sb-seg sb-who" data-sb-who>
-    <span class="sb-icon" aria-hidden="true">👤</span>
+    <span class="sb-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span>
     <div class="sb-field">
       <span class="sb-label">Who</span>
       <button type="button" class="sb-trigger" data-sb-who-trigger aria-haspopup="true" aria-expanded="false">
@@ -87,7 +88,7 @@
 
   <!-- 4. SEARCH -->
   <button type="submit" class="sb-submit">
-    <span class="sb-submit-icon" aria-hidden="true">🔍</span>
+    <span class="sb-submit-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
     <span class="sb-submit-text">Search</span>
   </button>
 </form>

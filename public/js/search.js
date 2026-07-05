@@ -34,16 +34,38 @@
     var acBox    = $('[data-sb-autocomplete]', bar);
     var areas    = (bar.getAttribute('data-areas') || '').split('|').filter(Boolean);
 
+    var PIN_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+
+    function acItem(a, val) {
+      var name = a;
+      if (val) {
+        var idx = a.toLowerCase().indexOf(val);
+        if (idx > -1) {
+          name = a.slice(0, idx) + '<strong>' + a.slice(idx, idx + val.length) + '</strong>' + a.slice(idx + val.length);
+        }
+      }
+      return '<button type="button" class="sb-opt sb-ac-opt" data-area="' + a + '">' +
+        PIN_SVG +
+        '<span class="sb-ac-text"><span class="sb-ac-name">' + name + '</span>' +
+        '<span class="sb-ac-sub">Addis Ababa, Ethiopia</span></span></button>';
+    }
+
     function renderAc() {
       var val = qInput.value.trim().toLowerCase();
-      var matches = areas.filter(function (a) { return a.toLowerCase().indexOf(val) > -1; });
       // exact match sets hidden area, otherwise clear it
       var exact = areas.filter(function (a) { return a.toLowerCase() === val; })[0];
       areaHid.value = exact || '';
-      if (!val || !matches.length) { acBox.hidden = true; acBox.innerHTML = ''; return; }
-      acBox.innerHTML = matches.map(function (a) {
-        return '<button type="button" class="sb-opt" data-area="' + a + '">📍 ' + a + '</button>';
-      }).join('');
+      var matches = val
+        ? areas.filter(function (a) { return a.toLowerCase().indexOf(val) > -1; })
+        : areas;
+      if (!matches.length) {
+        acBox.innerHTML = '<div class="sb-ac-head">No matching area — we\'ll search everywhere for “' + qInput.value.trim() + '”</div>';
+        acBox.hidden = false;
+        return;
+      }
+      var head = val ? 'Areas in Addis Ababa' : 'Popular areas in Addis Ababa';
+      acBox.innerHTML = '<div class="sb-ac-head">' + head + '</div>' +
+        matches.map(function (a) { return acItem(a, val); }).join('');
       acBox.hidden = false;
     }
     if (qInput && acBox) {
@@ -97,9 +119,30 @@
         refreshTerm();
         closeAll();
       });
-      if (checkin)  checkin.addEventListener('change', refreshTerm);
-      if (checkout) checkout.addEventListener('change', refreshTerm);
+      if (checkin)  checkin.addEventListener('change', function () {
+        // check-out can never be on/before check-in
+        if (checkout && checkin.value) {
+          var next = new Date(checkin.value); next.setDate(next.getDate() + 1);
+          checkout.min = next.toISOString().slice(0, 10);
+          if (checkout.value && checkout.value <= checkin.value) checkout.value = '';
+        }
+        clearDateError(); refreshTerm();
+      });
+      if (checkout) checkout.addEventListener('change', function () { clearDateError(); refreshTerm(); });
       refreshTerm();
+    }
+
+    // --- Daily-term date validation: don't search without both dates ---
+    var dateError = $('[data-sb-date-error]', bar);
+
+    function clearDateError() {
+      if (dateError) dateError.hidden = true;
+      if (checkin)  checkin.classList.remove('is-invalid');
+      if (checkout) checkout.classList.remove('is-invalid');
+    }
+    function showDateError(msg, field) {
+      if (dateError) { dateError.textContent = msg; dateError.hidden = false; }
+      if (field) { field.classList.add('is-invalid'); field.focus(); }
     }
 
     // --- Who popover + guest stepper ---
@@ -141,7 +184,27 @@
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') { closeAll(); if (acBox) acBox.hidden = true; }
     });
-    bar.addEventListener('submit', showSkeletons);
+    bar.addEventListener('submit', function (e) {
+      if (periodHid && periodHid.value === 'daily') {
+        if (!checkin || !checkin.value) {
+          e.preventDefault();
+          showDateError('Please choose a check-in date.', checkin);
+          return;
+        }
+        if (!checkout || !checkout.value) {
+          e.preventDefault();
+          showDateError('Please choose a check-out date.', checkout);
+          return;
+        }
+        if (checkout.value <= checkin.value) {
+          e.preventDefault();
+          showDateError('Check-out must be after check-in.', checkout);
+          return;
+        }
+      }
+      clearDateError();
+      showSkeletons();
+    });
   }
 
   // -----------------------------------------------------------------------
