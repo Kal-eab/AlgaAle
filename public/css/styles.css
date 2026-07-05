@@ -560,6 +560,50 @@ img { max-width: 100%; display: block; }
 .price-fees { font-size: .74rem; margin: 4px 0 12px; }
 .rcard-price .btn { white-space: nowrap; }
 
+/* ---- Trip.com-style booking page ---- */
+.book-page { max-width: 760px; margin: 0 auto; padding-top: 18px; }
+.book-steps { display: flex; align-items: center; gap: 10px; margin: 6px 0 18px; font-size: .85rem; color: var(--muted); flex-wrap: wrap; }
+.bstep { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.bstep-n {
+  width: 20px; height: 20px; border-radius: 50%; border: 1.5px solid var(--muted);
+  display: inline-flex; align-items: center; justify-content: center; font-size: .7rem;
+}
+.bstep.done, .bstep.active { color: var(--teal-dark); }
+.bstep.done .bstep-n, .bstep.active .bstep-n { border-color: var(--teal); background: var(--teal); color: #fff; }
+.bstep-sep { color: var(--line); }
+.book-card { margin-bottom: 16px; }
+.book-prop { display: flex; gap: 14px; }
+.book-prop-img { width: 110px; height: 88px; object-fit: cover; border-radius: 10px; flex-shrink: 0; }
+.book-prop-title { font-size: 1.15rem; margin: 0 0 4px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.book-prop-tags { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+.book-fineprint { font-size: .78rem; color: var(--muted); margin-top: 8px; }
+.book-dates-line { margin: 0 0 4px; }
+.book-picker-row { display: flex; gap: 14px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); flex-wrap: wrap; align-items: center; }
+.book-picker { display: flex; align-items: center; gap: 8px; }
+.book-picker select { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: .9rem; }
+.book-change { font-size: .82rem; color: var(--teal-dark); text-decoration: underline; }
+.book-price-row { display: flex; justify-content: space-between; margin: 8px 0; }
+.book-price-total { display: flex; justify-content: space-between; font-weight: 800; font-size: 1.25rem; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 12px; }
+.book-savings { color: var(--teal-dark); font-size: .82rem; margin-top: 8px; font-weight: 600; }
+.book-guest { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-top: 10px; }
+.book-guest-head { font-weight: 700; font-size: .85rem; margin-bottom: 8px; }
+.book-guest-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.book-guest-fields label { font-size: .78rem; color: var(--muted); display: flex; flex-direction: column; gap: 4px; }
+.book-guest-fields input { border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font-family: inherit; font-size: .92rem; }
+.book-submit { margin-top: 14px; font-size: 1rem; padding: 14px; }
+.book-legal { font-size: .76rem; margin-top: 10px; }
+@media (max-width: 640px) {
+  .book-guest-fields { grid-template-columns: 1fr; }
+  .book-prop { flex-direction: column; }
+  .book-prop-img { width: 100%; height: 160px; }
+}
+
+/* Listing page: carried-dates stay summary */
+.stay-summary { border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 12px; background: var(--bg); }
+.stay-dates { margin-bottom: 2px; }
+.stay-price { margin-top: 8px; font-size: .9rem; }
+.stay-price .muted { display: block; font-size: .78rem; }
+
 /* ---- Empty state ---- */
 .empty-state { text-align: center; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); padding: 48px 20px; }
 .empty-state h3 { margin: 14px 0 6px; }

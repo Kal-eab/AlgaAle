@@ -95,14 +95,34 @@
       <div class="panel booking-box">
         <% if (listing.period === 'daily' || listing.period === 'weekly') { %>
           <h3>Reserve your stay</h3>
-          <p class="muted">Pick your dates and pay securely — the host's contact is shared the moment payment clears.</p>
-          <form action="/listing/<%= listing.id %>/reserve" method="GET">
+          <% if (nights > 0) { %>
+            <!-- Dates carried from search — never ask twice -->
+            <%
+              function fmtD(s) {
+                var d = new Date(s + 'T00:00:00');
+                return isNaN(d) ? s : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+              }
+              var sub = Math.round(baseNightly) * nights;
+            %>
+            <div class="stay-summary">
+              <div class="stay-dates"><strong><%= fmtD(checkin) %> – <%= fmtD(checkout) %></strong></div>
+              <div class="muted"><%= nights %> night<%= nights > 1 ? 's' : '' %> · <%= guests %> guest<%= guests > 1 ? 's' : '' %></div>
+              <div class="stay-price">
+                <%= nights %> × <%= money(Math.round(baseNightly)) %> birr = <strong><%= money(sub) %> birr</strong>
+                <span class="muted">+ <%= C.SERVICE_FEE_PERCENT %>% service fee at checkout</span>
+              </div>
+            </div>
+            <a class="btn btn-primary btn-block"
+               href="/listing/<%= listing.id %>/reserve?checkin=<%= checkin %>&checkout=<%= checkout %>&guests=<%= guests %>">Reserve</a>
+            <button type="button" class="btn btn-ghost btn-block" data-change-dates>Change dates</button>
+          <% } %>
+          <form action="/listing/<%= listing.id %>/reserve" method="GET" data-dates-form <%= nights > 0 ? 'hidden' : '' %>>
             <label>Check-in</label>
-            <input type="date" name="checkin" id="ci" required />
+            <input type="date" name="checkin" id="ci" value="<%= checkin || '' %>" required />
             <label>Check-out</label>
-            <input type="date" name="checkout" id="co" required />
+            <input type="date" name="checkout" id="co" value="<%= checkout || '' %>" required />
             <label>Guests</label>
-            <input type="number" name="guests" min="1" value="1" required />
+            <input type="number" name="guests" min="1" value="<%= guests || 1 %>" required />
             <div class="muted" id="pricePreview" data-nightly="<%= Math.round(baseNightly) %>" style="margin:10px 0;">
               <%= money(Math.round(baseNightly)) %> birr / night
             </div>
@@ -112,6 +132,9 @@
             (function () {
               var ci = document.getElementById('ci'), co = document.getElementById('co'),
                   pv = document.getElementById('pricePreview'), btn = document.getElementById('reserveBtn');
+              var chg = document.querySelector('[data-change-dates]'),
+                  frm = document.querySelector('[data-dates-form]');
+              if (chg && frm) chg.addEventListener('click', function () { frm.hidden = false; chg.hidden = true; });
               var nightly = Number(pv.getAttribute('data-nightly')) || 0;
               var today = new Date().toISOString().slice(0, 10);
               ci.min = today; co.min = today;
@@ -130,14 +153,16 @@
               }
               ci.addEventListener('change', upd);
               co.addEventListener('change', upd);
+              upd();
             })();
           </script>
         <% } else { %>
           <h3>Request to book</h3>
           <p class="muted">Chat through AlgaAle first — no phone numbers shared until the host accepts. Safer for everyone.</p>
           <form action="/listing/<%= listing.id %>/book" method="POST">
-            <input type="text" name="name" placeholder="Your full name" required />
-            <input type="tel" name="phone" placeholder="Your phone number" required />
+            <!-- Prefilled from the logged-in account -->
+            <input type="text" name="name" placeholder="Your full name" value="<%= (user && user.fullName) || '' %>" required />
+            <input type="tel" name="phone" placeholder="Your phone number" value="<%= (user && user.phone) || '' %>" required />
             <input type="text" name="duration" placeholder="How long? e.g. 2 weeks, 3 months" />
             <textarea name="message" rows="3" placeholder="Tell the host a little about yourself…"></textarea>
             <button type="submit" class="btn btn-primary btn-block">Send booking request</button>

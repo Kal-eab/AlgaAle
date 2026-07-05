@@ -1,0 +1,204 @@
+<%- include('partials/header', { title: 'Your details — ' + listing.title }) %>
+<%
+  function fmtDate(s) {
+    var d = new Date(s + 'T00:00:00');
+    return isNaN(d) ? s : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  }
+  var given = '', surname = '';
+  if (user && user.fullName) {
+    var parts = user.fullName.trim().split(/\s+/);
+    given = parts.shift() || '';
+    surname = parts.join(' ');
+  }
+%>
+<div class="container book-page">
+
+  <!-- Steps (Trip.com style) -->
+  <div class="book-steps">
+    <span class="bstep done"><span class="bstep-n">✓</span> Your Selection</span>
+    <span class="bstep-sep">›</span>
+    <span class="bstep active"><span class="bstep-n">2</span> Your Details</span>
+    <span class="bstep-sep">›</span>
+    <span class="bstep"><span class="bstep-n">3</span> Final Step</span>
+  </div>
+
+  <form action="/listing/<%= listing.id %>/pay" method="POST" class="book-form" id="bookForm"
+        data-nights="<%= nights %>" data-fee="<%= serviceFeePercent %>" data-nightly="<%= Math.round(nightly) %>">
+    <input type="hidden" name="checkin"  value="<%= checkin %>" />
+    <input type="hidden" name="checkout" value="<%= checkout %>" />
+    <input type="hidden" name="guests"   value="<%= guests %>" />
+
+    <!-- Property card -->
+    <section class="panel book-card">
+      <div class="book-prop">
+        <% var cover = (room && room.photo) ? room.photo : firstPhoto(listing); %>
+        <img src="<%= cover || ('/placeholder.svg?text=' + encodeURIComponent(C.typeLabel(listing.type))) %>" alt="" class="book-prop-img" />
+        <div class="book-prop-info">
+          <h2 class="book-prop-title"><%= listing.title %>
+            <% if (listing.verified) { %><span class="badge badge-verified">✓ Verified</span><% } %>
+          </h2>
+          <div class="muted">📍 <%= listing.area %>, Addis Ababa · <%= C.typeLabel(listing.type) %></div>
+          <div class="book-prop-tags">
+            <% if (listing.furnished) { %><span class="tag">Furnished</span><% } %>
+            <% if (listing.wifi) { %><span class="tag">Free WiFi</span><% } %>
+            <% if (listing.water) { %><span class="tag">Water</span><% } %>
+            <% if (listing.parking) { %><span class="tag">Parking</span><% } %>
+          </div>
+          <div class="book-fineprint">ⓘ Non-refundable once payment is confirmed</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Dates + rooms -->
+    <section class="panel book-card">
+      <h3 class="book-dates-line"><%= fmtDate(checkin) %> – <%= fmtDate(checkout) %></h3>
+      <div class="muted">Check-in: from 14:00 &nbsp;·&nbsp; Check-out: before 11:00</div>
+      <div class="book-picker-row">
+        <div class="book-picker">
+          <span class="book-picker-ico">📅</span>
+          <strong><%= nights %> night<%= nights > 1 ? 's' : '' %></strong>
+          <a class="book-change" href="/listing/<%= listing.id %>?checkin=<%= checkin %>&checkout=<%= checkout %>&guests=<%= guests %>">Change</a>
+        </div>
+        <% if (rooms.length > 1) { %>
+        <div class="book-picker">
+          <label for="roomSel" class="muted">Room type</label>
+          <select id="roomSel" name="roomId" data-room-select>
+            <% rooms.forEach(function(r){ %>
+              <option value="<%= r.id %>" data-rate="<%= Math.round(r.nightlyRate) %>"
+                      <%= room && room.id === r.id ? 'selected' : '' %>>
+                <%= r.name %> — <%= money(Math.round(r.nightlyRate)) %> birr/night
+              </option>
+            <% }) %>
+          </select>
+        </div>
+        <% } else if (room) { %>
+          <input type="hidden" name="roomId" value="<%= room.id %>" />
+          <div class="book-picker"><span class="muted"><%= room.name %></span></div>
+        <% } %>
+        <div class="book-picker">
+          <label for="qtySel" class="muted">Rooms</label>
+          <select id="qtySel" name="qty" data-qty-select>
+            <% for (var q = 1; q <= 5; q++) { %>
+              <option value="<%= q %>"><%= q %> room<%= q > 1 ? 's' : '' %></option>
+            <% } %>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Price details -->
+    <section class="panel book-card">
+      <h3>Price Details</h3>
+      <div class="book-price-row">
+        <span><span data-qty-label>1 room</span> × <%= nights %> night<%= nights > 1 ? 's' : '' %> × <span data-rate-label><%= money(Math.round(nightly)) %></span> birr</span>
+        <span data-subtotal><%= money(subtotal) %> birr</span>
+      </div>
+      <div class="book-price-row">
+        <span>AlgaAle service fee (<%= serviceFeePercent %>%)</span>
+        <span data-fee-amt><%= money(serviceFee) %> birr</span>
+      </div>
+      <div class="book-price-total">
+        <span>Total</span>
+        <span data-total><%= money(total) %> birr</span>
+      </div>
+      <div class="book-savings">✓ Incl. all fees — no surprises at check-in</div>
+    </section>
+
+    <!-- Who's staying -->
+    <section class="panel book-card">
+      <h3>Who's staying?</h3>
+      <p class="muted">Guest names must match the ID used at check-in. We filled in your details from your account.</p>
+      <div data-guest-rows>
+        <% for (var g = 1; g <= 5; g++) { %>
+          <div class="book-guest" data-guest-row="<%= g %>" <%= g > 1 ? 'hidden' : '' %>>
+            <div class="book-guest-head">Room <%= g %></div>
+            <div class="book-guest-fields">
+              <label>Given names *
+                <input type="text" name="guest_given_<%= g %>" value="<%= g === 1 ? given : '' %>" <%= g === 1 ? 'required' : '' %> placeholder="Given names" />
+              </label>
+              <label>Surname *
+                <input type="text" name="guest_surname_<%= g %>" value="<%= g === 1 ? surname : '' %>" placeholder="Surname" />
+              </label>
+            </div>
+          </div>
+        <% } %>
+      </div>
+    </section>
+
+    <!-- Contact info (prefilled from account) -->
+    <section class="panel book-card">
+      <h3>Contact info</h3>
+      <div class="book-guest-fields">
+        <label>Email
+          <input type="email" name="email" value="<%= (user && user.email) || '' %>" placeholder="you@example.com" />
+        </label>
+        <label>Phone number *
+          <input type="tel" name="phone" value="<%= (user && user.phone) || '' %>" placeholder="+2519..." required />
+        </label>
+      </div>
+      <p class="muted" style="margin-top:6px;">Booking confirmation will be sent to this email.</p>
+    </section>
+
+    <!-- Special requests -->
+    <section class="panel book-card">
+      <h3>Special Requests <span class="muted" style="font-weight:400;">(Optional)</span></h3>
+      <p class="muted">The host will do their best, but requests can't be guaranteed.</p>
+      <textarea name="message" rows="3" placeholder="e.g. early check-in, ground floor, extra bedding…"></textarea>
+    </section>
+
+    <!-- Payment -->
+    <section class="panel book-card">
+      <h3>How would you like to pay?</h3>
+      <label class="check"><input type="radio" name="payMethod" value="chapa" checked />
+        Pay securely with Chapa (telebirr, CBE, card)</label>
+      <p class="muted">You'll be redirected to Chapa to complete the payment.</p>
+      <button type="submit" class="btn btn-primary btn-block book-submit">
+        Book now · <span data-total-btn><%= money(total) %></span> birr
+      </button>
+      <p class="muted book-legal">By booking you agree to AlgaAle's terms. This reservation is non-refundable once paid.</p>
+    </section>
+  </form>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById('bookForm');
+  if (!form) return;
+  var nights = Number(form.getAttribute('data-nights')) || 1;
+  var feePct = Number(form.getAttribute('data-fee')) || 0;
+  var nightly = Number(form.getAttribute('data-nightly')) || 0;
+  var roomSel = form.querySelector('[data-room-select]');
+  var qtySel  = form.querySelector('[data-qty-select]');
+  var money = function (n) { return Math.round(n).toLocaleString('en-US'); };
+
+  function update() {
+    if (roomSel) {
+      var opt = roomSel.options[roomSel.selectedIndex];
+      nightly = Number(opt.getAttribute('data-rate')) || nightly;
+    }
+    var qty = Number(qtySel && qtySel.value) || 1;
+    var subtotal = nightly * nights * qty;
+    var fee = Math.round(subtotal * feePct / 100);
+    var total = subtotal + fee;
+
+    var q = function (sel) { return form.querySelector(sel); };
+    q('[data-qty-label]').textContent = qty + ' room' + (qty > 1 ? 's' : '');
+    q('[data-rate-label]').textContent = money(nightly);
+    q('[data-subtotal]').textContent = money(subtotal) + ' birr';
+    q('[data-fee-amt]').textContent = money(fee) + ' birr';
+    q('[data-total]').textContent = money(total) + ' birr';
+    q('[data-total-btn]').textContent = money(total);
+
+    // One guest-name block per room, Trip.com style
+    for (var i = 1; i <= 5; i++) {
+      var row = form.querySelector('[data-guest-row="' + i + '"]');
+      if (row) row.hidden = i > qty;
+    }
+  }
+  if (roomSel) roomSel.addEventListener('change', update);
+  if (qtySel)  qtySel.addEventListener('change', update);
+  update();
+})();
+</script>
+
+<%- include('partials/footer') %>

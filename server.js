@@ -410,7 +410,18 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   let baseNightly = 0;
   if (rooms.length) baseNightly = Math.min.apply(null, rooms.map(r => r.nightlyRate));
   else baseNightly = listing.period === 'weekly' ? listing.price / 7 : listing.price;
-  res.render('listing', { listing, reviews, avg, rooms, baseNightly });
+
+  // Dates carried over from the search (so we never ask for them again)
+  const checkin  = req.query.checkin  || '';
+  const checkout = req.query.checkout || '';
+  const guests   = Number(req.query.guests) || 1;
+  const nights   = nightsBetween(checkin, checkout);
+
+  res.render('listing', {
+    listing, reviews, avg, rooms, baseNightly,
+    checkin, checkout, guests,
+    nights: nights > 0 ? nights : 0
+  });
 }));
 
 app.post('/listing/:id/book', requireUser, wrap(async (req, res) => {
@@ -456,10 +467,8 @@ app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
   }
   const rooms = await store.getRoomsByListing(listing.id);
 
-  if (rooms.length > 1 && !req.query.room) {
-    return res.render('reserve-rooms', { listing, rooms, checkin, checkout, guests, nights });
-  }
-
+  // One Trip.com-style booking page: room choice, room quantity, price
+  // details and guest names all live here — nothing is asked twice.
   let room = null;
   if (req.query.room) {
     room = await store.getRoomById(req.query.room);
@@ -467,15 +476,16 @@ app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
       req.flash('error', 'Invalid room selected.');
       return res.redirect('/listing/' + listing.id);
     }
-  } else if (rooms.length === 1) {
+  } else if (rooms.length) {
     room = rooms[0];
   }
 
   const nightly = effectiveNightly(listing, room);
   const totals = computeTotals(nightly, nights);
-  res.render('reserve-confirm', {
-    listing, room, checkin, checkout, guests, nights, nightly,
+  res.render('book', {
+    listing, rooms, room, checkin, checkout, guests, nights, nightly,
     subtotal: totals.subtotal, serviceFee: totals.serviceFee, total: totals.total,
+    serviceFeePercent: C.SERVICE_FEE_PERCENT,
     firstPhoto: listingFirstPhoto
   });
 }));
@@ -509,17 +519,43 @@ app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
       encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
   }
 
-  const nightly = effectiveNightly(listing, room);
-  const { subtotal, serviceFee, total } = computeTotals(nightly, nights);
+  // Room quantity (Trip.com style: N rooms × nightly × nights)
+  const qty = Math.min(5, Math.max(1, Number(req.body.qty) || 1));
+
+  // Lead guest defaults to the logged-in account — never ask twice
   const u = req.session.user;
+  const leadName = [req.body.guest_given_1, req.body.guest_surname_1]
+    .filter(Boolean).join(' ').trim() || u.fullName;
+  const phone = (req.body.phone || '').trim() || u.phone || '';
+  if (!phone) {
+    req.flash('error', 'Please add a phone number so the host can reach you.');
+    return res.redirect('/listing/' + listing.id + '/reserve?checkin=' +
+      encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
+  }
+
+  // Extra room guests + special requests folded into the booking message
+  const extraGuests = [];
+  for (let i = 2; i <= qty; i++) {
+    const g = [req.body['guest_given_' + i], req.body['guest_surname_' + i]]
+      .filter(Boolean).join(' ').trim();
+    if (g) extraGuests.push('Room ' + i + ': ' + g);
+  }
+  const notes = [];
+  if (req.body.message) notes.push(String(req.body.message).trim());
+  if (extraGuests.length) notes.push('Guests — ' + extraGuests.join(' · '));
+
+  const nightly = effectiveNightly(listing, room);
+  const { subtotal, serviceFee, total } = computeTotals(nightly * qty, nights);
   const bookingId = nanoid(10);
 
   await store.createBooking({
     id: bookingId,
     listingId: listing.id,
     listingTitle: listing.title,
-    name: u.fullName,
-    phone: u.phone || '',
+    name: leadName,
+    phone,
+    duration: qty + ' room' + (qty > 1 ? 's' : ''),
+    message: notes.join('\n'),
     roomId: room ? room.id : null,
     checkinDate: checkin,
     checkoutDate: checkout,
