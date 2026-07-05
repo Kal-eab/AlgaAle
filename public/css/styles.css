@@ -566,21 +566,6 @@ img { max-width: 100%; display: block; }
 .price-fees { font-size: .74rem; margin: 4px 0 12px; }
 .rcard-price .btn { white-space: nowrap; }
 
-/* ---- Skeletons ---- */
-.skeletons { display: flex; flex-direction: column; gap: 18px; }
-.skeleton-card { display: grid; grid-template-columns: 35% 1fr; background: #fff; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
-.sk-media { min-height: 200px; }
-.sk-lines { padding: 18px; display: flex; flex-direction: column; gap: 12px; }
-.sk-media, .sk-lines span {
-  background: linear-gradient(90deg, #eef2f7 25%, #e2e8f0 37%, #eef2f7 63%);
-  background-size: 400% 100%; animation: shimmer 1.4s infinite;
-}
-.sk-lines span { height: 14px; border-radius: 6px; display: block; }
-.sk-lines span:nth-child(1) { width: 70%; }
-.sk-lines span:nth-child(2) { width: 40%; }
-.sk-lines span:nth-child(3) { width: 55%; }
-@keyframes shimmer { from { background-position: 100% 0; } to { background-position: 0 0; } }
-
 /* ---- Empty state ---- */
 .empty-state { text-align: center; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); padding: 48px 20px; }
 .empty-state h3 { margin: 14px 0 6px; }

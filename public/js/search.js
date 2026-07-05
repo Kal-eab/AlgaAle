@@ -312,7 +312,6 @@
         }
       }
       clearDateError();
-      showSkeletons();
     });
   }
 
@@ -382,7 +381,7 @@
     var form = $('[data-filter-form]');
     if (!form) return;
 
-    function submit() { if (!sheetOpen()) { showSkeletons(); form.submit(); } }
+    function submit() { if (!sheetOpen()) form.submit(); }
 
     $$('[data-autofilter]', form).forEach(function (el) {
       var evt = (el.type === 'range') ? 'change' : 'change';
@@ -417,7 +416,7 @@
     var hsort = $('[data-sort-hidden]', form);
     if (dsort) dsort.addEventListener('change', function () {
       if (hsort) hsort.value = dsort.value;
-      showSkeletons(); form.submit();
+      form.submit();
     });
   }
 
@@ -451,15 +450,6 @@
 
     var msort = $('[data-mobile-sort]');
     if (msort) msort.addEventListener('change', function () { setParam('sort', msort.value); });
-  }
-
-  // -----------------------------------------------------------------------
-  // Skeleton loading during navigation
-  // -----------------------------------------------------------------------
-  function showSkeletons() {
-    var sk = $('[data-skeletons]'), list = $('[data-results]');
-    if (sk) sk.hidden = false;
-    if (list) list.style.display = 'none';
   }
 
   // -----------------------------------------------------------------------
