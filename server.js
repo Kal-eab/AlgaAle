@@ -247,9 +247,10 @@ function buildSearchUrl(query, omitKey, omitValue) {
 
 function effectiveNightly(listing, room) {
   if (room) return Number(room.nightlyRate) || 0;
-  return listing.period === 'weekly'
-    ? (Number(listing.price) || 0) / 7
-    : (Number(listing.price) || 0);
+  const price = Number(listing.price) || 0;
+  if (listing.period === 'weekly')  return price / 7;
+  if (listing.period === 'monthly') return price / 30;
+  return price;
 }
 
 function nightsBetween(checkin, checkout) {
@@ -409,7 +410,7 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   const rooms = await store.getRoomsByListing(listing.id);
   let baseNightly = 0;
   if (rooms.length) baseNightly = Math.min.apply(null, rooms.map(r => r.nightlyRate));
-  else baseNightly = listing.period === 'weekly' ? listing.price / 7 : listing.price;
+  else baseNightly = effectiveNightly(listing, null);
 
   // Dates carried over from the search (so we never ask for them again)
   const checkin  = req.query.checkin  || '';
@@ -455,9 +456,6 @@ app.post('/listing/:id/book', requireUser, wrap(async (req, res) => {
 app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
   const listing = await store.getListingById(req.params.id);
   if (!listing) { req.flash('error', 'That listing could not be found.'); return res.redirect('/'); }
-  if (listing.period !== 'daily' && listing.period !== 'weekly') {
-    return res.redirect('/listing/' + listing.id);
-  }
   const checkin = req.query.checkin, checkout = req.query.checkout;
   const guests = Number(req.query.guests) || 1;
   const nights = nightsBetween(checkin, checkout);
@@ -493,9 +491,6 @@ app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
 app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
   const listing = await store.getListingById(req.params.id);
   if (!listing) { req.flash('error', 'That listing could not be found.'); return res.redirect('/'); }
-  if (listing.period !== 'daily' && listing.period !== 'weekly') {
-    return res.redirect('/listing/' + listing.id);
-  }
   const checkin = req.body.checkin, checkout = req.body.checkout;
   const guests = Number(req.body.guests) || 1;
   const nights = nightsBetween(checkin, checkout);

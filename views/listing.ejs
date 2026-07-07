@@ -93,8 +93,13 @@
     <!-- Booking sidebar -->
     <aside class="listing-side">
       <div class="panel booking-box">
-        <% if (listing.period === 'daily' || listing.period === 'weekly') { %>
           <h3>Reserve your stay</h3>
+          <% if (listing.period !== 'daily') { %>
+            <p class="muted" style="font-size:.82rem;">
+              <%= money(listing.price) %> birr / <%= C.periodLabel(listing.period).toLowerCase() %>
+              → <%= money(Math.round(baseNightly)) %> birr per night
+            </p>
+          <% } %>
           <% if (nights > 0) { %>
             <!-- Dates carried from search — never ask twice -->
             <%
@@ -156,18 +161,6 @@
               upd();
             })();
           </script>
-        <% } else { %>
-          <h3>Request to book</h3>
-          <p class="muted">Chat through AlgaAle first — no phone numbers shared until the host accepts. Safer for everyone.</p>
-          <form action="/listing/<%= listing.id %>/book" method="POST">
-            <!-- Prefilled from the logged-in account -->
-            <input type="text" name="name" placeholder="Your full name" value="<%= (user && user.fullName) || '' %>" required />
-            <input type="tel" name="phone" placeholder="Your phone number" value="<%= (user && user.phone) || '' %>" required />
-            <input type="text" name="duration" placeholder="How long? e.g. 2 weeks, 3 months" />
-            <textarea name="message" rows="3" placeholder="Tell the host a little about yourself…"></textarea>
-            <button type="submit" class="btn btn-primary btn-block">Send booking request</button>
-          </form>
-        <% } %>
       </div>
 
       <div class="panel host-box">
