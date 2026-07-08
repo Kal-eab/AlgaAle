@@ -23,7 +23,8 @@
   </div>
 
   <form action="/listing/<%= listing.id %>/pay" method="POST" class="book-form" id="bookForm"
-        data-nights="<%= nights %>" data-fee="<%= serviceFeePercent %>" data-nightly="<%= Math.round(nightly) %>">
+        data-nights="<%= nights %>" data-fee="<%= serviceFeePercent %>" data-nightly="<%= Math.round(nightly) %>"
+        data-available="<%= selectedAvailable %>">
     <input type="hidden" name="checkin"  value="<%= checkin %>" />
     <input type="hidden" name="checkout" value="<%= checkout %>" />
     <input type="hidden" name="guests"   value="<%= guests %>" />
@@ -55,7 +56,7 @@
       <div class="muted">Check-in: from 14:00 &nbsp;·&nbsp; Check-out: before 11:00</div>
       <div class="book-picker-row">
         <div class="book-picker">
-          <span class="book-picker-ico">📅</span>
+          <span class="book-picker-ico">🗓</span>
           <strong><%= nights %> night<%= nights > 1 ? 's' : '' %></strong>
           <a class="book-change" href="/listing/<%= listing.id %>?checkin=<%= checkin %>&checkout=<%= checkout %>&guests=<%= guests %>">Change</a>
         </div>
@@ -63,10 +64,11 @@
         <div class="book-picker">
           <label for="roomSel" class="muted">Room type</label>
           <select id="roomSel" name="roomId" data-room-select>
-            <% rooms.forEach(function(r){ %>
+            <% rooms.forEach(function(r){ var av = availabilityByRoom[r.id] || 0; %>
               <option value="<%= r.id %>" data-rate="<%= Math.round(r.nightlyRate) %>"
-                      <%= room && room.id === r.id ? 'selected' : '' %>>
-                <%= r.name %> — <%= money(Math.round(r.nightlyRate)) %> birr/night
+                      data-available="<%= av %>"
+                      <%= room && room.id === r.id ? 'selected' : '' %> <%= av < 1 ? 'disabled' : '' %>>
+                <%= r.name %> — <%= money(Math.round(r.nightlyRate)) %> birr/night<%= av < 1 ? ' — sold out' : ' · ' + av + ' left' %>
               </option>
             <% }) %>
           </select>
@@ -79,9 +81,14 @@
           <label for="qtySel" class="muted">Rooms</label>
           <select id="qtySel" name="qty" data-qty-select>
             <% for (var q = 1; q <= 5; q++) { %>
-              <option value="<%= q %>"><%= q %> room<%= q > 1 ? 's' : '' %></option>
+              <option value="<%= q %>" <%= q > selectedAvailable ? 'disabled' : '' %>><%= q %> room<%= q > 1 ? 's' : '' %></option>
             <% } %>
           </select>
+        </div>
+        <div class="book-picker">
+          <span class="book-avail" data-avail-hint <%= selectedAvailable > 3 ? 'hidden' : '' %>>
+            Only <span data-avail-count><%= selectedAvailable %></span> left for your dates
+          </span>
         </div>
       </div>
     </section>
@@ -172,9 +179,24 @@
   var money = function (n) { return Math.round(n).toLocaleString('en-US'); };
 
   function update() {
+    var avail = Number(form.getAttribute('data-available')) || 1;
     if (roomSel) {
       var opt = roomSel.options[roomSel.selectedIndex];
       nightly = Number(opt.getAttribute('data-rate')) || nightly;
+      avail = Number(opt.getAttribute('data-available')) || 0;
+    }
+    // Cap the rooms quantity at live availability for the chosen bucket
+    if (qtySel) {
+      for (var qi = 0; qi < qtySel.options.length; qi++) {
+        qtySel.options[qi].disabled = Number(qtySel.options[qi].value) > avail;
+      }
+      if (Number(qtySel.value) > avail) qtySel.value = String(Math.max(1, avail));
+    }
+    var hint = form.querySelector('[data-avail-hint]');
+    if (hint) {
+      hint.hidden = avail > 3;
+      var cnt = hint.querySelector('[data-avail-count]');
+      if (cnt) cnt.textContent = avail;
     }
     var qty = Number(qtySel && qtySel.value) || 1;
     var subtotal = nightly * nights * qty;

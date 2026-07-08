@@ -1,0 +1,121 @@
+<%- include('../partials/header', { title: 'Calendar — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Availability calendar</h1>
+      <p class="muted" style="margin:4px 0 0;">Booked / total units per night. Checkout days are free for new check-ins.</p>
+    </div>
+    <div>
+      <a href="/provider/calendar?start=<%= prev %>" class="btn btn-ghost btn-sm">‹ Prev week</a>
+      <a href="/provider/calendar" class="btn btn-ghost btn-sm">Today</a>
+      <a href="/provider/calendar?start=<%= next %>" class="btn btn-ghost btn-sm">Next week ›</a>
+    </div>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/provider" class="btn btn-ghost">Overview</a>
+    <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
+    <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
+    <a href="/provider/reservations/new" class="btn btn-ghost">+ Walk-in</a>
+  </div>
+
+  <% if (rows.length === 0) { %>
+    <div class="empty"><p>No listings yet — add one to see its calendar.</p></div>
+  <% } else { %>
+  <div class="cal-scroll">
+    <table class="cal-grid">
+      <thead>
+        <tr>
+          <th class="cal-bucket-col">Room / unit</th>
+          <% days.forEach(function(d){ var dt = new Date(d + 'T00:00:00'); %>
+            <th class="<%= d === today ? 'cal-today' : '' %>">
+              <span class="cal-dow"><%= dt.toLocaleDateString('en-US', { weekday: 'short' }) %></span><br>
+              <span class="cal-dom"><%= dt.getDate() %></span>
+            </th>
+          <% }) %>
+        </tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function(row){ %>
+          <tr>
+            <td class="cal-bucket-col">
+              <strong><%= row.room ? row.room.name : row.listing.title %></strong>
+              <div class="muted" style="font-size:.75rem;">
+                <%= row.room ? row.listing.title : 'Whole place' %> · <%= row.total %> unit<%= row.total === 1 ? '' : 's' %>
+              </div>
+            </td>
+            <% days.forEach(function(d){
+                 var c = cells[row.listing.id + '|' + (row.room ? row.room.id : '') + '|' + d] || { used: 0, blocked: 0, names: [] };
+                 var occupied = c.used + c.blocked;
+                 var cls = 'cal-cell';
+                 if (c.blocked >= row.total) cls += ' is-blocked';
+                 else if (occupied >= row.total) cls += ' is-full';
+                 else if (occupied > 0) cls += ' is-partial';
+                 if (d === today) cls += ' cal-today';
+            %>
+              <td class="<%= cls %>" title="<%= c.names.join(', ') %>">
+                <%= occupied %>/<%= row.total %>
+              </td>
+            <% }) %>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="cal-legend">
+    <span><span class="lg lg-free"></span> Available</span>
+    <span><span class="lg lg-partial"></span> Partially booked</span>
+    <span><span class="lg lg-full"></span> Fully booked</span>
+    <span><span class="lg lg-blocked"></span> Blocked / maintenance</span>
+  </div>
+
+  <div class="panel" style="margin-top:22px;">
+    <h3 style="margin-top:0;">Block dates</h3>
+    <p class="muted">Take units off sale without a guest — maintenance, family stays, held rooms. End date works like a checkout day (not blocked itself).</p>
+    <form action="/provider/blocks" method="POST" class="block-form">
+      <label>Room
+        <select name="bucket" required>
+          <% rows.forEach(function(row){ %>
+            <option value="<%= row.listing.id %>|<%= row.room ? row.room.id : '' %>">
+              <%= row.room ? (row.listing.title + ' — ' + row.room.name) : row.listing.title %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+      <label>From <input type="date" name="startDate" required min="<%= today %>" /></label>
+      <label>Until <input type="date" name="endDate" required /></label>
+      <label>Units <input type="number" name="units" min="1" value="1" style="width:70px;" /></label>
+      <label>Reason <input type="text" name="reason" placeholder="e.g. maintenance" /></label>
+      <button type="submit" class="btn btn-primary">Block</button>
+    </form>
+
+    <% if (blocks.length) { %>
+      <table class="table" style="margin-top:14px;">
+        <thead><tr><th>Room</th><th>From</th><th>Until</th><th>Units</th><th>Reason</th><th></th></tr></thead>
+        <tbody>
+          <% blocks.forEach(function(ab){
+               var row = rows.filter(function(r){ return r.listing.id === ab.listingId && ((r.room && r.room.id) || null) === ab.roomId; })[0];
+          %>
+            <tr>
+              <td><%= row ? (row.room ? row.listing.title + ' — ' + row.room.name : row.listing.title) : ab.listingId %></td>
+              <td><%= ab.startDate %></td>
+              <td><%= ab.endDate %></td>
+              <td><%= ab.unitsBlocked %></td>
+              <td><%= ab.reason || '—' %></td>
+              <td>
+                <form action="/provider/blocks/<%= ab.id %>/delete" method="POST" class="inline-form">
+                  <button class="btn btn-sm btn-ghost">Remove</button>
+                </form>
+              </td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } %>
+  </div>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

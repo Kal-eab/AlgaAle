@@ -54,7 +54,9 @@
                 <a href="/become-provider" class="profile-dropdown-item">List your home</a>
               <% } %>
             <% } else if (user.role === 'provider') { %>
-              <a href="/provider" class="profile-dropdown-item">My listings</a>
+              <a href="/provider" class="profile-dropdown-item">Dashboard</a>
+              <a href="/provider/calendar" class="profile-dropdown-item">Calendar</a>
+              <a href="/provider/reservations" class="profile-dropdown-item">Reservations</a>
             <% } else if (user.role === 'owner') { %>
               <div class="owner-nav-menu">
                 <button class="profile-dropdown-item owner-nav-trigger" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">

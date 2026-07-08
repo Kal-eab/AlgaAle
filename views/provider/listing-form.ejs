@@ -67,6 +67,19 @@
         <label>Description</label>
         <textarea name="description" rows="4" placeholder="Describe the room, compound, neighbourhood, and house rules…"><%= editing ? listing.description : '' %></textarea>
       </div>
+
+      <div class="field">
+        <label>Check-in from</label>
+        <input type="time" name="checkinTime" value="<%= (editing && listing.checkinTime) || '14:00' %>" />
+      </div>
+      <div class="field">
+        <label>Check-out before</label>
+        <input type="time" name="checkoutTime" value="<%= (editing && listing.checkoutTime) || '11:00' %>" />
+      </div>
+      <div class="field span-2">
+        <label>Cancellation policy</label>
+        <textarea name="cancellationPolicy" rows="2" placeholder="e.g. Non-refundable once paid; free date change up to 48h before check-in."><%= (editing && listing.cancellationPolicy) || '' %></textarea>
+      </div>
     </div>
 
     <fieldset class="amenity-fieldset">
@@ -159,6 +172,19 @@
               <label>Nightly rate (birr)</label>
               <input type="number" name="nightlyRate" min="0" step="50" value="<%= rm.nightlyRate %>" />
             </div>
+            <div class="field">
+              <label>Units of this room</label>
+              <input type="number" name="totalUnits" min="1" value="<%= rm.totalUnits || 1 %>" />
+            </div>
+            <div class="field">
+              <label>Bed type</label>
+              <select name="bedType">
+                <option value="">—</option>
+                <% ['single','double','twin','queen','king'].forEach(function(bt){ %>
+                  <option value="<%= bt %>" <%= rm.bedType === bt ? 'selected' : '' %>><%= bt.charAt(0).toUpperCase() + bt.slice(1) %></option>
+                <% }) %>
+              </select>
+            </div>
             <div class="field" style="grid-column:1 / -1;">
               <label>Replace photo (optional)</label>
               <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
@@ -191,6 +217,20 @@
       <div class="field">
         <label>Nightly rate (birr) *</label>
         <input type="number" name="nightlyRate" min="0" step="50" required />
+      </div>
+      <div class="field">
+        <label>Units of this room</label>
+        <input type="number" name="totalUnits" min="1" value="1" />
+        <span class="muted" style="font-size:.75rem;">How many identical rooms you have (drives availability)</span>
+      </div>
+      <div class="field">
+        <label>Bed type</label>
+        <select name="bedType">
+          <option value="">—</option>
+          <% ['single','double','twin','queen','king'].forEach(function(bt){ %>
+            <option value="<%= bt %>"><%= bt.charAt(0).toUpperCase() + bt.slice(1) %></option>
+          <% }) %>
+        </select>
       </div>
       <div class="field" style="grid-column:1 / -1;">
         <label>Photo (optional)</label>

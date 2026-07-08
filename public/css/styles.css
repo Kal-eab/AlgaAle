@@ -604,6 +604,61 @@ img { max-width: 100%; display: block; }
 .stay-price { margin-top: 8px; font-size: .9rem; }
 .stay-price .muted { display: block; font-size: .78rem; }
 
+/* ---- Provider operations dashboard ---- */
+.stat-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+.stat-card { text-align: center; padding: 18px 10px; }
+.stat-num { font-size: 1.7rem; font-weight: 800; color: var(--teal-dark); }
+.stat-label { font-size: .78rem; color: var(--muted); margin-top: 4px; }
+.stat-revenue .stat-num { color: var(--ink); }
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px;
+  background: #e65100; color: #fff; font-size: .68rem; font-weight: 700;
+}
+
+.cal-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: #fff; }
+.cal-grid { border-collapse: collapse; width: 100%; min-width: 900px; font-size: .82rem; }
+.cal-grid th, .cal-grid td { border: 1px solid var(--line); padding: 6px 4px; text-align: center; }
+.cal-grid thead th { background: var(--bg); font-size: .72rem; }
+.cal-dow { color: var(--muted); font-weight: 600; }
+.cal-dom { font-weight: 800; font-size: .9rem; }
+.cal-bucket-col { text-align: left !important; padding: 8px 10px !important; min-width: 170px; position: sticky; left: 0; background: #fff; z-index: 2; }
+.cal-cell { color: var(--muted); }
+.cal-cell.is-partial { background: var(--teal-light); color: var(--teal-dark); font-weight: 700; }
+.cal-cell.is-full { background: var(--teal); color: #fff; font-weight: 700; }
+.cal-cell.is-blocked { background: #e2e8f0; color: #475569; font-weight: 700; }
+.cal-grid .cal-today { box-shadow: inset 0 0 0 2px var(--teal); }
+.cal-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; font-size: .78rem; color: var(--muted); }
+.cal-legend .lg { display: inline-block; width: 14px; height: 14px; border-radius: 4px; vertical-align: -2px; margin-right: 5px; border: 1px solid var(--line); }
+.lg-free { background: #fff; }
+.lg-partial { background: var(--teal-light); }
+.lg-full { background: var(--teal); }
+.lg-blocked { background: #e2e8f0; }
+
+.block-form { display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; }
+.block-form label { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--muted); }
+.block-form input, .block-form select { border: 1px solid var(--line); border-radius: 9px; padding: 8px 10px; font-family: inherit; font-size: .88rem; }
+
+.res-tabs { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; margin: 14px 0; }
+.res-tab {
+  padding: 7px 14px; border-radius: 999px; border: 1px solid var(--line);
+  font-size: .82rem; font-weight: 600; color: var(--ink); background: #fff;
+}
+.res-tab.is-active { background: var(--teal); border-color: var(--teal); color: #fff; }
+.res-search { margin-left: auto; }
+.res-search input { border: 1px solid var(--line); border-radius: 999px; padding: 8px 14px; font-family: inherit; font-size: .85rem; min-width: 230px; }
+.res-actions { white-space: nowrap; }
+.pill-confirmed, .pill-accepted { background: #e0f2fe; color: #075985; }
+.pill-checked_in { background: #fef9c3; color: #854d0e; }
+.pill-checked_out { background: #e2e8f0; color: #475569; }
+.pill-cancelled, .pill-no_show, .pill-declined { background: #fee2e2; color: #991b1b; }
+
+.walkin-form label { display: flex; flex-direction: column; gap: 4px; font-size: .8rem; color: var(--muted); margin-bottom: 10px; }
+.walkin-form input, .walkin-form select { border: 1px solid var(--line); border-radius: 9px; padding: 9px 11px; font-family: inherit; font-size: .9rem; }
+.walkin-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.book-avail { color: #b45309; font-weight: 700; font-size: .82rem; }
+@media (max-width: 640px) { .walkin-grid { grid-template-columns: 1fr; } .res-search { margin-left: 0; width: 100%; } }
+
 /* ---- Empty state ---- */
 .empty-state { text-align: center; background: #fff; border: 1px dashed var(--line); border-radius: var(--radius); padding: 48px 20px; }
 .empty-state h3 { margin: 14px 0 6px; }

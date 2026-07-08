@@ -267,6 +267,18 @@ function computeTotals(nightly, nights) {
   return { subtotal, serviceFee, total: subtotal + serviceFee };
 }
 
+// Notification hook — called after every successful booking creation.
+// Extend later (Telegram/email); the provider dashboard badge reads new
+// bookings by created_at, so nothing else is required here yet.
+function onBookingCreated(booking, listing) {
+  if (booking) {
+    console.log('[booking] new booking ' + booking.id + ' — ' +
+      (listing ? listing.title : booking.listingId) + ' · ' +
+      booking.checkinDate + ' → ' + booking.checkoutDate +
+      ' · ' + (booking.numRooms || 1) + ' room(s)');
+  }
+}
+
 // ===========================================================================
 // PUBLIC: HOME
 // ===========================================================================
@@ -342,6 +354,14 @@ app.get('/search', wrap(async (req, res) => {
       const t = (l.title + ' ' + (l.description || '')).toLowerCase();
       return t.includes('university') || t.includes('campus') || t.includes('college');
     });
+  }
+
+  // With dates: only show places with at least one bucket free for the range
+  if (f.checkin && f.checkout && nightsBetween(f.checkin, f.checkout) > 0) {
+    const bookable = await Promise.all(
+      listings.map((l) => store.isListingBookable(l.id, f.checkin, f.checkout))
+    );
+    listings = listings.filter((_, i) => bookable[i]);
   }
 
   const score = (l) => (l.featured ? 2 : 0) + (l.verified ? 1 : 0);
@@ -478,12 +498,28 @@ app.get('/listing/:id/reserve', requireUser, wrap(async (req, res) => {
     room = rooms[0];
   }
 
+  // Live availability per bucket for these dates (drives "X left" + qty cap)
+  const buckets = await store.listingBookableUnits(listing.id, checkin, checkout);
+  const availabilityByRoom = {};
+  let wholeHomeAvailable = 1;
+  buckets.forEach((bk) => {
+    if (bk.room) availabilityByRoom[bk.room.id] = bk.available;
+    else wholeHomeAvailable = bk.available;
+  });
+  const selectedAvailable = room ? (availabilityByRoom[room.id] || 0) : wholeHomeAvailable;
+  if (selectedAvailable < 1 && !buckets.some(bk => bk.available >= 1)) {
+    req.flash('error', 'Sorry — this place is fully booked for those dates. Try different dates.');
+    return res.redirect('/listing/' + listing.id + '?checkin=' + encodeURIComponent(checkin) +
+      '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
+  }
+
   const nightly = effectiveNightly(listing, room);
   const totals = computeTotals(nightly, nights);
   res.render('book', {
     listing, rooms, room, checkin, checkout, guests, nights, nightly,
     subtotal: totals.subtotal, serviceFee: totals.serviceFee, total: totals.total,
     serviceFeePercent: C.SERVICE_FEE_PERCENT,
+    availabilityByRoom, wholeHomeAvailable, selectedAvailable,
     firstPhoto: listingFirstPhoto
   });
 }));
@@ -543,26 +579,39 @@ app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
   const { subtotal, serviceFee, total } = computeTotals(nightly * qty, nights);
   const bookingId = nanoid(10);
 
-  await store.createBooking({
-    id: bookingId,
-    listingId: listing.id,
-    listingTitle: listing.title,
-    name: leadName,
-    phone,
-    duration: qty + ' room' + (qty > 1 ? 's' : ''),
-    message: notes.join('\n'),
-    roomId: room ? room.id : null,
-    checkinDate: checkin,
-    checkoutDate: checkout,
-    guests,
-    nightlyRate: nightly,
-    nights,
-    subtotal, serviceFee, total,
-    status: 'pending',
-    paymentStatus: 'pending',
-    chapaTxRef: 'algaale-' + bookingId,
-    createdAt: Date.now()
-  });
+  // Overbooking-safe: locks the bucket and re-checks availability in one
+  // transaction. Confirmed bookings consume inventory immediately.
+  try {
+    await store.createBookingSafe({
+      id: bookingId,
+      listingId: listing.id,
+      listingTitle: listing.title,
+      name: leadName,
+      phone,
+      duration: qty + ' room' + (qty > 1 ? 's' : ''),
+      message: notes.join('\n'),
+      roomId: room ? room.id : null,
+      checkinDate: checkin,
+      checkoutDate: checkout,
+      guests,
+      numRooms: qty,
+      nightlyRate: nightly,
+      nights,
+      subtotal, serviceFee, total,
+      status: 'confirmed',
+      paymentStatus: 'pending',
+      chapaTxRef: 'algaale-' + bookingId,
+      createdAt: Date.now()
+    });
+  } catch (e) {
+    if (e.code === 'SOLD_OUT') {
+      req.flash('error', 'Those dates just sold out — someone booked while you were checking out. Try different dates or fewer rooms.');
+      return res.redirect('/listing/' + listing.id + '/reserve?checkin=' +
+        encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
+    }
+    throw e;
+  }
+  onBookingCreated(await store.getBookingById(bookingId), listing);
 
   // PHASE 3: no real charge yet. Phase 4 will replace this redirect with a
   // Chapa initialize() call + redirect to the Chapa checkout URL.
@@ -740,9 +789,61 @@ app.post('/become-provider', requireUser, idUpload.single('idImage'), wrap(async
 // ===========================================================================
 // PROVIDER DASHBOARD
 // ===========================================================================
+// Providers see their own listings; admin/owner see all
+async function providerListings(req) {
+  const u = req.session.user;
+  if (u.role === 'admin' || u.role === 'owner') return store.getListings();
+  return store.getListingsByOwner(u.id);
+}
+function todayIso() { return new Date().toISOString().slice(0, 10); }
+function addDaysIso(iso, n) {
+  const d = new Date(iso + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 app.get('/provider', requireProvider, wrap(async (req, res) => {
-  const myListings = await store.getListingsByOwner(req.session.user.id);
-  res.render('provider/dashboard', { listings: myListings, firstPhoto: listingFirstPhoto });
+  const myListings = await providerListings(req);
+  const ids = myListings.map((l) => l.id);
+  const today = todayIso();
+
+  const all = (await store.getBookings()).filter((b) => ids.includes(b.listingId));
+  const active = all.filter((b) => store.ACTIVE_STATUSES.includes(b.status));
+  const arrivals = active.filter((b) => b.checkinDate === today && b.status !== 'checked_in');
+  const inHouse = active.filter((b) => b.checkinDate && b.checkinDate <= today && b.checkoutDate > today);
+  const departures = active.filter((b) => b.checkoutDate === today);
+
+  // Occupancy tonight = (units in stays spanning tonight + blocked units) / total units
+  let totalUnits = 0;
+  for (const l of myListings) {
+    const rooms = await store.getRoomsByListing(l.id);
+    totalUnits += rooms.length ? rooms.reduce((s, r) => s + (r.totalUnits || 1), 0) : 1;
+  }
+  const blocks = await store.getBlocksByListings(ids);
+  const usedTonight = inHouse.reduce((s, b) => s + (b.numRooms || 1), 0) +
+    blocks.filter((ab) => ab.startDate <= today && ab.endDate > today)
+          .reduce((s, ab) => s + (ab.unitsBlocked || 1), 0);
+  const occupancy = totalUnits ? Math.min(100, Math.round(usedTonight / totalUnits * 100)) : 0;
+
+  const monthStart = new Date(today.slice(0, 8) + '01T00:00:00').getTime();
+  const revenueMonth = all
+    .filter((b) => (store.ACTIVE_STATUSES.includes(b.status) || b.status === 'checked_out') && b.createdAt >= monthStart)
+    .reduce((s, b) => s + (Number(b.total) || 0), 0);
+
+  const newCount = all.filter((b) => Date.now() - b.createdAt < 86400000).length;
+
+  res.render('provider/dashboard', {
+    listings: myListings,
+    firstPhoto: listingFirstPhoto,
+    stats: {
+      arrivals: arrivals.length,
+      departures: departures.length,
+      inHouse: inHouse.length,
+      occupancy, totalUnits, revenueMonth
+    },
+    recent: all.slice(0, 8),
+    newCount, today
+  });
 }));
 
 app.get('/provider/listings/new', requireProvider, (req, res) => {
@@ -769,6 +870,9 @@ app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap
     featured: false,
     status: 'active',
     photos: collectUploadedPhotos(req.files, null),
+    checkinTime: b.checkinTime || null,
+    checkoutTime: b.checkoutTime || null,
+    cancellationPolicy: b.cancellationPolicy || '',
     createdAt: Date.now()
   });
   req.flash('success', 'Listing created and is now live.');
@@ -802,7 +906,10 @@ app.post('/provider/listings/:id', requireProvider, upload.fields(photoFields), 
     verified: listing.verified,
     featured: listing.featured,
     status: b.status || 'active',
-    photos: collectUploadedPhotos(req.files, listing.photos)
+    photos: collectUploadedPhotos(req.files, listing.photos),
+    checkinTime: b.checkinTime || listing.checkinTime,
+    checkoutTime: b.checkoutTime || listing.checkoutTime,
+    cancellationPolicy: b.cancellationPolicy != null ? b.cancellationPolicy : listing.cancellationPolicy
   });
   req.flash('success', 'Listing updated.');
   res.redirect('/provider');
@@ -853,6 +960,9 @@ app.post('/provider/listings/:id/rooms', requireProvider, upload.single('photo')
     nightlyRate: Number(b.nightlyRate) || 0,
     photo: req.file ? req.file.path : null,
     sortOrder: Number(b.sortOrder) || 0,
+    totalUnits: Math.max(1, Number(b.totalUnits) || 1),
+    bedType: b.bedType || null,
+    description: b.roomDescription || '',
     createdAt: Date.now()
   });
   req.flash('success', 'Room added.');
@@ -871,12 +981,31 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
     return res.redirect('/provider/listings/' + req.params.id + '/edit');
   }
   const b = req.body;
+  const newTotal = Math.max(1, Number(b.totalUnits) || room.totalUnits || 1);
+  // Lowering total_units must not silently strand future bookings: check the
+  // peak booked units on future nights before accepting a smaller number.
+  if (newTotal < (room.totalUnits || 1)) {
+    const today = new Date().toISOString().slice(0, 10);
+    const horizon = new Date(); horizon.setFullYear(horizon.getFullYear() + 1);
+    const available = await store.getAvailability({
+      listingId: listing.id, roomId: room.id,
+      checkin: today, checkout: horizon.toISOString().slice(0, 10)
+    });
+    const peakBooked = (room.totalUnits || 1) - available;
+    if (newTotal < peakBooked) {
+      req.flash('error', `Cannot reduce to ${newTotal} unit(s): up to ${peakBooked} are already booked on future nights. Cancel those bookings first.`);
+      return res.redirect('/provider/listings/' + req.params.id + '/edit');
+    }
+  }
   await store.updateRoom(room.id, {
     name: b.name || room.name,
     capacity: Number(b.capacity) || room.capacity,
     nightlyRate: Number(b.nightlyRate) || room.nightlyRate,
     photo: req.file ? req.file.path : room.photo,
-    sortOrder: Number(b.sortOrder) || room.sortOrder
+    sortOrder: Number(b.sortOrder) || room.sortOrder,
+    totalUnits: newTotal,
+    bedType: b.bedType || room.bedType,
+    description: b.roomDescription != null ? b.roomDescription : room.description
   });
   req.flash('success', 'Room updated.');
   res.redirect('/provider/listings/' + req.params.id + '/edit');
@@ -894,6 +1023,228 @@ app.post('/provider/listings/:id/rooms/:roomId/delete', requireProvider, wrap(as
     req.flash('success', 'Room removed.');
   }
   res.redirect('/provider/listings/' + req.params.id + '/edit');
+}));
+
+// ===========================================================================
+// PROVIDER OPERATIONS: calendar, reservations, walk-ins, blocks
+// ===========================================================================
+
+// Legal booking status transitions ('accepted' = legacy confirmed)
+const BOOKING_TRANSITIONS = {
+  pending:    ['confirmed', 'cancelled'],
+  confirmed:  ['checked_in', 'cancelled', 'no_show'],
+  accepted:   ['checked_in', 'cancelled', 'no_show'],
+  checked_in: ['checked_out']
+};
+
+// Bucket rows for calendar / forms: one per room, one for whole-home listings
+async function bucketRows(listings) {
+  const rows = [];
+  for (const l of listings) {
+    const rooms = await store.getRoomsByListing(l.id);
+    if (!rooms.length) rows.push({ listing: l, room: null, total: 1 });
+    rooms.forEach((r) => rows.push({ listing: l, room: r, total: r.totalUnits || 1 }));
+  }
+  return rows;
+}
+
+app.get('/provider/calendar', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const ids = myListings.map((l) => l.id);
+  const start = /^\d{4}-\d{2}-\d{2}$/.test(req.query.start || '') ? req.query.start : todayIso();
+  const end = addDaysIso(start, 14);
+  const days = [];
+  for (let i = 0; i < 14; i++) days.push(addDaysIso(start, i));
+
+  const rows = await bucketRows(myListings);
+  const bookings = await store.getActiveBookingsInRange(ids, start, end);
+  const allBlocks = await store.getBlocksByListings(ids);
+  const blocks = allBlocks.filter((ab) => ab.startDate < end && ab.endDate > start);
+
+  // cells[listingId|roomId|date] = { used, blocked, names[] }
+  const keyOf = (lid, rid, d) => lid + '|' + (rid || '') + '|' + d;
+  const cells = {};
+  const cell = (k) => (cells[k] = cells[k] || { used: 0, blocked: 0, names: [] });
+  bookings.forEach((b) => {
+    days.forEach((d) => {
+      if (b.checkinDate <= d && b.checkoutDate > d) {
+        const c = cell(keyOf(b.listingId, b.roomId, d));
+        c.used += b.numRooms || 1;
+        c.names.push(b.name + (b.status === 'checked_in' ? ' · in-house' : ''));
+      }
+    });
+  });
+  blocks.forEach((ab) => {
+    days.forEach((d) => {
+      if (ab.startDate <= d && ab.endDate > d) {
+        const c = cell(keyOf(ab.listingId, ab.roomId, d));
+        c.blocked += ab.unitsBlocked || 1;
+        c.names.push('Blocked' + (ab.reason ? ': ' + ab.reason : ''));
+      }
+    });
+  });
+
+  res.render('provider/calendar', {
+    rows, days, cells, start,
+    prev: addDaysIso(start, -7), next: addDaysIso(start, 7),
+    blocks: allBlocks.filter((ab) => ab.endDate >= todayIso()),
+    today: todayIso()
+  });
+}));
+
+app.post('/provider/blocks', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const [listingId, roomId] = String(req.body.bucket || '').split('|');
+  const listing = myListings.find((l) => l.id === listingId);
+  const start = req.body.startDate, end = req.body.endDate;
+  if (!listing || !start || !end || end <= start) {
+    req.flash('error', 'Pick a room and a valid date range (end after start).');
+    return res.redirect('/provider/calendar');
+  }
+  if (roomId) {
+    const room = await store.getRoomById(roomId);
+    if (!room || room.listingId !== listing.id) {
+      req.flash('error', 'Invalid room.');
+      return res.redirect('/provider/calendar');
+    }
+  }
+  await store.createBlock({
+    id: nanoid(10),
+    listingId: listing.id,
+    roomId: roomId || null,
+    startDate: start,
+    endDate: end,
+    unitsBlocked: Math.max(1, Number(req.body.units) || 1),
+    reason: req.body.reason || '',
+    createdAt: Date.now()
+  });
+  req.flash('success', 'Dates blocked — those units no longer show as available.');
+  res.redirect('/provider/calendar?start=' + encodeURIComponent(start));
+}));
+
+app.post('/provider/blocks/:id/delete', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const block = await store.getBlockById(req.params.id);
+  if (block && myListings.some((l) => l.id === block.listingId)) {
+    await store.deleteBlock(block.id);
+    req.flash('success', 'Block removed.');
+  }
+  res.redirect('/provider/calendar');
+}));
+
+app.get('/provider/reservations', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const ids = myListings.map((l) => l.id);
+  const today = todayIso();
+  const tab = req.query.tab || 'all';
+  const q = (req.query.q || '').trim().toLowerCase();
+
+  let list = (await store.getBookings()).filter((b) => ids.includes(b.listingId));
+  const isActive = (b) => store.ACTIVE_STATUSES.includes(b.status);
+  if (tab === 'arrivals')   list = list.filter((b) => isActive(b) && b.checkinDate === today && b.status !== 'checked_in');
+  if (tab === 'inhouse')    list = list.filter((b) => b.status === 'checked_in');
+  if (tab === 'departures') list = list.filter((b) => isActive(b) && b.checkoutDate === today);
+  if (tab === 'upcoming')   list = list.filter((b) => isActive(b) && b.checkinDate && b.checkinDate > today);
+  if (tab === 'cancelled')  list = list.filter((b) => ['cancelled', 'no_show', 'declined'].includes(b.status));
+  if (q) list = list.filter((b) =>
+    (b.name || '').toLowerCase().includes(q) || (b.phone || '').includes(q));
+
+  // Room names for the table
+  const roomName = {};
+  for (const l of myListings) {
+    (await store.getRoomsByListing(l.id)).forEach((r) => { roomName[r.id] = r.name; });
+  }
+
+  res.render('provider/reservations', { list, tab, q, today, roomName });
+}));
+
+app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const booking = await store.getBookingById(req.params.id);
+  const back = '/provider/reservations' + (req.body.tab ? '?tab=' + encodeURIComponent(req.body.tab) : '');
+  if (!booking || !myListings.some((l) => l.id === booking.listingId)) {
+    req.flash('error', 'Reservation not found.');
+    return res.redirect(back);
+  }
+  const next = req.body.status;
+  const allowed = BOOKING_TRANSITIONS[booking.status] || [];
+  if (!allowed.includes(next)) {
+    req.flash('error', `Cannot change a ${booking.status} reservation to ${next}.`);
+    return res.redirect(back);
+  }
+  // Confirming starts consuming inventory — make sure the units still exist
+  if (next === 'confirmed') {
+    const available = await store.getAvailability({
+      listingId: booking.listingId, roomId: booking.roomId || null,
+      checkin: booking.checkinDate, checkout: booking.checkoutDate
+    });
+    if (available < (booking.numRooms || 1)) {
+      req.flash('error', 'Not enough units left for those dates — the room has since been booked or blocked.');
+      return res.redirect(back);
+    }
+  }
+  await store.updateBookingStatus(booking.id, next);
+  req.flash('success', 'Reservation ' + next.replace('_', ' ') + '.');
+  res.redirect(back);
+}));
+
+app.get('/provider/reservations/new', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const rows = await bucketRows(myListings);
+  res.render('provider/reservation-form', { rows, today: todayIso() });
+}));
+
+app.post('/provider/reservations/new', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const b = req.body;
+  const [listingId, roomId] = String(b.bucket || '').split('|');
+  const listing = myListings.find((l) => l.id === listingId);
+  const nights = nightsBetween(b.checkin, b.checkout);
+  if (!listing || !b.name || !b.phone || !(nights > 0)) {
+    req.flash('error', 'Room, guest name, phone, and valid dates are required.');
+    return res.redirect('/provider/reservations/new');
+  }
+  let room = null;
+  if (roomId) {
+    room = await store.getRoomById(roomId);
+    if (!room || room.listingId !== listing.id) {
+      req.flash('error', 'Invalid room.');
+      return res.redirect('/provider/reservations/new');
+    }
+  }
+  const qty = Math.max(1, Number(b.qty) || 1);
+  const nightly = Number(b.nightly) > 0 ? Number(b.nightly) : effectiveNightly(listing, room);
+  const { subtotal, serviceFee, total } = computeTotals(nightly * qty, nights);
+  const bookingId = nanoid(10);
+  try {
+    await store.createBookingSafe({
+      id: bookingId,
+      listingId: listing.id,
+      listingTitle: listing.title,
+      name: b.name, phone: b.phone,
+      duration: qty + ' room' + (qty > 1 ? 's' : ''),
+      message: ['Walk-in booking', b.notes || ''].filter(Boolean).join(' · '),
+      roomId: room ? room.id : null,
+      checkinDate: b.checkin, checkoutDate: b.checkout,
+      guests: Math.max(1, Number(b.guests) || 1),
+      numRooms: qty,
+      nightlyRate: nightly, nights,
+      subtotal, serviceFee, total,
+      status: 'confirmed',
+      paymentStatus: b.paid === 'on' ? 'paid' : 'pending',
+      chapaTxRef: null,
+      createdAt: Date.now()
+    });
+  } catch (e) {
+    if (e.code === 'SOLD_OUT') {
+      req.flash('error', 'Not enough units free for those dates.');
+      return res.redirect('/provider/reservations/new');
+    }
+    throw e;
+  }
+  onBookingCreated(await store.getBookingById(bookingId), listing);
+  req.flash('success', 'Walk-in reservation added.');
+  res.redirect('/provider/reservations');
 }));
 
 // ===========================================================================

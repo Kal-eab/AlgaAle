@@ -1,0 +1,41 @@
+<%- include('../partials/header', { title: 'Add walk-in booking — AlgaAle' }) %>
+
+<div class="container admin" style="max-width:640px;">
+  <div class="admin-head">
+    <h1>Add walk-in booking</h1>
+  </div>
+  <div class="admin-nav">
+    <a href="/provider/reservations" class="btn btn-ghost">← Reservations</a>
+  </div>
+
+  <div class="panel">
+    <p class="muted">For guests who book in person or by phone. Uses the same availability rules as online bookings — it will refuse if the units are taken.</p>
+    <form action="/provider/reservations/new" method="POST" class="walkin-form">
+      <label>Room
+        <select name="bucket" required>
+          <% rows.forEach(function(row){ %>
+            <option value="<%= row.listing.id %>|<%= row.room ? row.room.id : '' %>">
+              <%= row.room ? (row.listing.title + ' — ' + row.room.name + ' (' + money(Math.round(row.room.nightlyRate)) + ' birr/night)') : row.listing.title %>
+            </option>
+          <% }) %>
+        </select>
+      </label>
+      <div class="walkin-grid">
+        <label>Check-in <input type="date" name="checkin" required min="<%= today %>" /></label>
+        <label>Check-out <input type="date" name="checkout" required /></label>
+        <label>Rooms <input type="number" name="qty" min="1" max="10" value="1" /></label>
+        <label>Guests <input type="number" name="guests" min="1" value="1" /></label>
+      </div>
+      <div class="walkin-grid">
+        <label>Guest name <input type="text" name="name" required placeholder="Full name" /></label>
+        <label>Phone <input type="tel" name="phone" required placeholder="+2519…" /></label>
+      </div>
+      <label>Price per night (birr) <input type="number" name="nightly" min="0" placeholder="Leave empty to use the room rate" /></label>
+      <label>Notes <input type="text" name="notes" placeholder="Optional" /></label>
+      <label class="check"><input type="checkbox" name="paid" /> Already paid in full</label>
+      <button type="submit" class="btn btn-primary btn-block">Add reservation</button>
+    </form>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

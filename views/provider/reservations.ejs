@@ -1,0 +1,66 @@
+<%- include('../partials/header', { title: 'Reservations — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Reservations</h1>
+      <p class="muted" style="margin:4px 0 0;">Confirm, check guests in and out, and add walk-ins.</p>
+    </div>
+    <a href="/provider/reservations/new" class="btn btn-primary">+ Add walk-in booking</a>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/provider" class="btn btn-ghost">Overview</a>
+    <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
+    <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
+  </div>
+
+  <div class="res-tabs">
+    <% [['all','All'],['arrivals','Arrivals today'],['inhouse','In-house'],['departures','Departures today'],['upcoming','Upcoming'],['cancelled','Cancelled']].forEach(function(t){ %>
+      <a href="/provider/reservations?tab=<%= t[0] %>" class="res-tab <%= tab === t[0] ? 'is-active' : '' %>"><%= t[1] %></a>
+    <% }) %>
+    <form action="/provider/reservations" method="GET" class="res-search">
+      <input type="hidden" name="tab" value="<%= tab %>" />
+      <input type="text" name="q" value="<%= q %>" placeholder="Search guest name or phone…" />
+    </form>
+  </div>
+
+  <% if (list.length === 0) { %>
+    <div class="empty"><p>No reservations in this view.</p></div>
+  <% } else { %>
+  <table class="table">
+    <thead>
+      <tr><th>Guest</th><th>Listing / Room</th><th>Check-in</th><th>Check-out</th><th>Nights</th><th>Rooms</th><th>Status</th><th>Payment</th><th>Total</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      <% list.forEach(function(b){ %>
+        <tr>
+          <td><strong><%= b.name %></strong><br><span class="muted"><%= b.phone %></span></td>
+          <td><%= b.listingTitle %><% if (b.roomId && roomName[b.roomId]) { %><br><span class="muted"><%= roomName[b.roomId] %></span><% } %></td>
+          <td><%= b.checkinDate || '—' %></td>
+          <td><%= b.checkoutDate || '—' %></td>
+          <td><%= b.nights != null ? b.nights : '—' %></td>
+          <td><%= b.numRooms || 1 %></td>
+          <td><span class="pill pill-<%= b.status %>"><%= b.status.replace('_',' ') %></span></td>
+          <td><span class="pill pill-<%= b.paymentStatus === 'paid' ? 'verified' : 'pending' %>"><%= b.paymentStatus || 'pending' %></span></td>
+          <td><%= b.total != null ? money(b.total) + ' birr' : '—' %></td>
+          <td class="actions-cell res-actions">
+            <% function act(status, label) { %>
+              <form action="/provider/reservations/<%= b.id %>/status" method="POST" class="inline-form">
+                <input type="hidden" name="status" value="<%= status %>" />
+                <input type="hidden" name="tab" value="<%= tab %>" />
+                <button class="btn btn-sm btn-ghost"><%= label %></button>
+              </form>
+            <% } %>
+            <% if (b.status === 'pending') { act('confirmed', 'Confirm'); act('cancelled', 'Cancel'); } %>
+            <% if (b.status === 'confirmed' || b.status === 'accepted') { act('checked_in', 'Check in'); act('no_show', 'No-show'); act('cancelled', 'Cancel'); } %>
+            <% if (b.status === 'checked_in') { act('checked_out', 'Check out'); } %>
+          </td>
+        </tr>
+      <% }) %>
+    </tbody>
+  </table>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

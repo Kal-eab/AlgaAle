@@ -1,18 +1,58 @@
-<%- include('../partials/header', { title: 'My listings — AlgaAle' }) %>
+<%- include('../partials/header', { title: 'Dashboard — AlgaAle' }) %>
 
 <div class="container admin">
   <div class="admin-head">
     <div>
-      <h1>My listings</h1>
-      <p class="muted" style="margin:4px 0 0;">Manage the homes and rooms you've listed on AlgaAle.</p>
+      <h1>Dashboard</h1>
+      <p class="muted" style="margin:4px 0 0;">Today at your properties — <%= today %></p>
     </div>
     <a href="/provider/listings/new" class="btn btn-primary">+ Add a listing</a>
   </div>
 
   <div class="admin-nav">
-    <a href="/" class="btn btn-ghost">← Browse listings</a>
+    <a href="/provider" class="btn btn-ghost">Overview</a>
+    <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
+    <a href="/provider/reservations" class="btn btn-ghost">Reservations<% if (newCount > 0) { %> <span class="nav-badge"><%= newCount %></span><% } %></a>
+    <a href="/provider/reservations/new" class="btn btn-ghost">+ Walk-in</a>
   </div>
 
+  <div class="stat-cards">
+    <div class="panel stat-card"><div class="stat-num"><%= stats.arrivals %></div><div class="stat-label">Arrivals today</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= stats.departures %></div><div class="stat-label">Departures today</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= stats.inHouse %></div><div class="stat-label">In-house now</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= stats.occupancy %>%</div><div class="stat-label">Occupancy tonight · <%= stats.totalUnits %> unit<%= stats.totalUnits === 1 ? '' : 's' %></div></div>
+    <div class="panel stat-card stat-revenue"><div class="stat-num"><%= money(stats.revenueMonth) %></div><div class="stat-label">birr booked this month</div></div>
+  </div>
+
+  <div class="panel" style="margin-top:18px;">
+    <div class="admin-head" style="margin:0 0 10px;">
+      <h3 style="margin:0;">Recent reservations</h3>
+      <a href="/provider/reservations" class="btn btn-sm btn-ghost">View all →</a>
+    </div>
+    <% if (recent.length === 0) { %>
+      <p class="muted">No reservations yet — they'll appear here the moment a guest books.</p>
+    <% } else { %>
+    <table class="table">
+      <thead><tr><th>Guest</th><th>Listing</th><th>Dates</th><th>Rooms</th><th>Status</th><th>Total</th></tr></thead>
+      <tbody>
+        <% recent.forEach(function(b){ %>
+          <tr>
+            <td><strong><%= b.name %></strong><br><span class="muted"><%= b.phone %></span></td>
+            <td><%= b.listingTitle %></td>
+            <td><%= b.checkinDate || '—' %> → <%= b.checkoutDate || '—' %></td>
+            <td><%= b.numRooms || 1 %></td>
+            <td><span class="pill pill-<%= b.status %>"><%= b.status.replace('_',' ') %></span></td>
+            <td><%= b.total != null ? money(b.total) + ' birr' : '—' %></td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+    <% } %>
+  </div>
+
+  <div class="admin-head" style="margin-top:26px;">
+    <h3 style="margin:0;">My listings</h3>
+  </div>
   <% if (listings.length === 0) { %>
     <div class="empty">
       <p>You haven't listed anything yet.</p>
