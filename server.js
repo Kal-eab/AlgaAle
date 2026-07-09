@@ -614,6 +614,8 @@ app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
     }
     throw e;
   }
+  // Confirmed on creation → give the guest a specific room number right away.
+  await store.assignRoomNumbers(bookingId);
   onBookingCreated(await store.getBookingById(bookingId), listing);
 
   // PHASE 3: no real charge yet. Phase 4 will replace this redirect with a
@@ -804,6 +806,14 @@ function addDaysIso(iso, n) {
   d.setDate(d.getDate() + n);
   return d.toISOString().slice(0, 10);
 }
+// UTC-anchored day shift — unlike addDaysIso it never drifts across the
+// local-timezone boundary (needed where the shifted date is compared to a raw
+// ISO date string, e.g. building a half-open [date, date+1) range).
+function shiftIsoDay(iso, n) {
+  const d = new Date(iso + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
 
 app.get('/provider', requireProvider, wrap(async (req, res) => {
   const myListings = await providerListings(req);
@@ -895,6 +905,15 @@ function parseBeds(body) {
     if (qty > 0) beds.push({ type: t.value, qty });
   });
   return beds;
+}
+
+// "101, 102, 103" -> ["101","102","103"] (deduped, order preserved).
+function parseRoomNumbers(str) {
+  const seen = new Set();
+  return String(str || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s && !seen.has(s) && seen.add(s));
 }
 
 app.get('/provider/listings/new', requireProvider, (req, res) => {
@@ -1026,6 +1045,7 @@ app.post('/provider/listings/:id/rooms', requireProvider, upload.single('photo')
     // Derive bed_type from the first bed so the legacy UI keeps working.
     bedType: beds.length ? beds[0].type : (b.bedType || null),
     beds,
+    roomNumbers: parseRoomNumbers(b.roomNumbers),
     description: b.roomDescription || '',
     createdAt: Date.now()
   });
@@ -1068,6 +1088,8 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
   // a photo-only form and must not wipe the room's beds).
   const hasBedFields = C.BED_TYPES.some((t) => b['beds_' + t.value] !== undefined);
   const beds = hasBedFields ? parseBeds(b) : room.beds;
+  // Only touch room numbers when the field was submitted (photo-only saves omit it).
+  const roomNumbers = b.roomNumbers !== undefined ? parseRoomNumbers(b.roomNumbers) : room.roomNumbers;
   await store.updateRoom(room.id, {
     name: b.name || room.name,
     capacity: Number(b.capacity) || room.capacity,
@@ -1077,6 +1099,7 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
     totalUnits: newTotal,
     bedType: beds && beds.length ? beds[0].type : (b.bedType || room.bedType),
     beds: beds || [],
+    roomNumbers: roomNumbers || [],
     description: b.roomDescription != null ? b.roomDescription : room.description
   });
   req.flash('success', 'Room updated.');
@@ -1221,7 +1244,8 @@ app.get('/provider/calendar', requireProvider, wrap(async (req, res) => {
       if (b.checkinDate <= d && b.checkoutDate > d) {
         const c = cell(keyOf(b.listingId, b.roomId, d));
         c.used += b.numRooms || 1;
-        c.names.push(b.name + (b.status === 'checked_in' ? ' · in-house' : ''));
+        const rn = b.assignedRoomNumber ? 'Room ' + b.assignedRoomNumber + ' — ' : '';
+        c.names.push(rn + b.name + (b.status === 'checked_in' ? ' · in-house' : ''));
       }
     });
   });
@@ -1300,13 +1324,26 @@ app.get('/provider/reservations', requireProvider, wrap(async (req, res) => {
   if (q) list = list.filter((b) =>
     (b.name || '').toLowerCase().includes(q) || (b.phone || '').includes(q));
 
-  // Room names for the table
+  // Room names + numbers for the table
   const roomName = {};
+  const roomsById = {};
   for (const l of myListings) {
-    (await store.getRoomsByListing(l.id)).forEach((r) => { roomName[r.id] = r.name; });
+    (await store.getRoomsByListing(l.id)).forEach((r) => { roomName[r.id] = r.name; roomsById[r.id] = r; });
   }
 
-  res.render('provider/reservations', { list, tab, q, today, roomName });
+  // Selectable room numbers per active booking (free ones + its own current),
+  // so staff can reassign; and flag active bookings still missing a number.
+  const assignOptions = {};
+  for (const b of list) {
+    const room = b.roomId ? roomsById[b.roomId] : null;
+    if (room && room.roomNumbers && room.roomNumbers.length && store.ACTIVE_STATUSES.includes(b.status)) {
+      const free = await store.freeRoomNumbers(room, b.checkinDate, b.checkoutDate, b.id);
+      const current = String(b.assignedRoomNumber || '').split(',').map((s) => s.trim()).filter(Boolean);
+      assignOptions[b.id] = room.roomNumbers.map(String).filter((n) => free.includes(n) || current.includes(n));
+    }
+  }
+
+  res.render('provider/reservations', { list, tab, q, today, roomName, assignOptions });
 }));
 
 app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, res) => {
@@ -1335,8 +1372,94 @@ app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, 
     }
   }
   await store.updateBookingStatus(booking.id, next);
-  req.flash('success', 'Reservation ' + next.replace('_', ' ') + '.');
+  // Entering an active state assigns a specific room number (if the room type
+  // has numbers defined and one isn't already assigned).
+  let assignedNote = '';
+  if (next === 'confirmed' || next === 'checked_in') {
+    const assigned = await store.assignRoomNumbers(booking.id);
+    if (assigned && !booking.assignedRoomNumber) assignedNote = ' Room ' + assigned + ' assigned.';
+  }
+  req.flash('success', 'Reservation ' + next.replace('_', ' ') + '.' + assignedNote);
   res.redirect(back);
+}));
+
+// Manually assign / reassign a specific room number to a reservation.
+app.post('/provider/reservations/:id/room-number', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const booking = await store.getBookingById(req.params.id);
+  const back = '/provider/reservations' + (req.body.tab ? '?tab=' + encodeURIComponent(req.body.tab) : '');
+  if (!booking || !myListings.some((l) => l.id === booking.listingId)) {
+    req.flash('error', 'Reservation not found.');
+    return res.redirect(back);
+  }
+  const desired = String(req.body.roomNumber || '').trim();
+  const room = booking.roomId ? await store.getRoomById(booking.roomId) : null;
+  if (!desired) {
+    // Empty selection clears the assignment.
+    await store.updateBookingRoomNumber(booking.id, null);
+    req.flash('success', 'Room number cleared.');
+    return res.redirect(back);
+  }
+  if (!room || !room.roomNumbers.map(String).includes(desired)) {
+    req.flash('error', 'That room number is not part of this room type.');
+    return res.redirect(back);
+  }
+  const used = await store.getAssignedNumbersForRoom(room.id, booking.checkinDate, booking.checkoutDate, booking.id);
+  if (used.has(desired)) {
+    req.flash('error', 'Room ' + desired + ' is already occupied for those dates.');
+    return res.redirect(back);
+  }
+  await store.updateBookingRoomNumber(booking.id, desired);
+  req.flash('success', 'Room ' + desired + ' assigned.');
+  res.redirect(back);
+}));
+
+// Occupancy board — every physical room number and who's in it for a date.
+app.get('/provider/occupancy', requireProvider, wrap(async (req, res) => {
+  const myListings = await providerListings(req);
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : todayIso();
+  const nextDay = shiftIsoDay(date, 1);
+  const ids = myListings.map((l) => l.id);
+  const bookings = await store.getActiveBookingsInRange(ids, date, nextDay);
+  const blocks = (await store.getBlocksByListings(ids))
+    .filter((ab) => ab.startDate <= date && ab.endDate > date);
+
+  const groups = [];
+  let totals = { occupied: 0, free: 0, blocked: 0, unassigned: 0 };
+  for (const l of myListings) {
+    if (l.status === 'draft') continue;
+    const rooms = await store.getRoomsByListing(l.id);
+    const roomsOut = [];
+    for (const room of rooms) {
+      if (!room.roomNumbers || !room.roomNumbers.length) continue; // numbered rooms only
+      const roomBookings = bookings.filter((b) =>
+        b.roomId === room.id && b.checkinDate <= date && b.checkoutDate > date);
+      const occByNumber = {};
+      roomBookings.forEach((b) => String(b.assignedRoomNumber || '').split(',')
+        .map((s) => s.trim()).filter(Boolean)
+        .forEach((n) => { occByNumber[n] = b; }));
+      let blockedUnits = blocks.filter((ab) => ab.roomId === room.id)
+        .reduce((s, ab) => s + (ab.unitsBlocked || 1), 0);
+      const units = room.roomNumbers.map(String).map((n) => {
+        const b = occByNumber[n];
+        if (b) return { number: n, status: 'occupied', who: b.name + (b.status === 'checked_in' ? ' · in-house' : '') };
+        return { number: n, status: 'free', who: '' };
+      });
+      for (const u of units) { if (blockedUnits <= 0) break; if (u.status === 'free') { u.status = 'blocked'; blockedUnits--; } }
+      const unassigned = roomBookings
+        .filter((b) => !b.assignedRoomNumber)
+        .reduce((s, b) => s + (b.numRooms || 1), 0);
+      units.forEach((u) => { totals[u.status]++; });
+      totals.unassigned += unassigned;
+      roomsOut.push({ room, units, unassigned });
+    }
+    if (roomsOut.length) groups.push({ listing: l, rooms: roomsOut });
+  }
+
+  res.render('provider/occupancy', {
+    groups, totals, date, today: todayIso(),
+    prev: shiftIsoDay(date, -1), next: shiftIsoDay(date, 1)
+  });
 }));
 
 app.get('/provider/reservations/new', requireProvider, wrap(async (req, res) => {
@@ -1393,6 +1516,7 @@ app.post('/provider/reservations/new', requireProvider, wrap(async (req, res) =>
     }
     throw e;
   }
+  await store.assignRoomNumbers(bookingId);
   onBookingCreated(await store.getBookingById(bookingId), listing);
   req.flash('success', 'Walk-in reservation added.');
   res.redirect('/provider/reservations');

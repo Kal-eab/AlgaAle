@@ -45,6 +45,11 @@
                     <input type="number" name="totalUnits" min="1" value="<%= rm.totalUnits || 1 %>" />
                   </div>
                   <div class="field span-2">
+                    <label>Room numbers</label>
+                    <input type="text" name="roomNumbers" value="<%= (rm.roomNumbers || []).join(', ') %>" placeholder="e.g. 101, 102, 103" />
+                    <span class="muted" style="font-size:.75rem;">Comma-separated. One per unit — guests get a specific number when confirmed.</span>
+                  </div>
+                  <div class="field span-2">
                     <label>Description</label>
                     <input type="text" name="roomDescription" value="<%= rm.description || '' %>" placeholder="Optional" />
                   </div>
@@ -114,6 +119,11 @@
           <label>Units of this room *</label>
           <input type="number" name="totalUnits" min="1" value="1" />
           <span class="muted" style="font-size:.75rem;">How many identical rooms you have (drives availability).</span>
+        </div>
+        <div class="field span-2">
+          <label>Room numbers</label>
+          <input type="text" name="roomNumbers" placeholder="e.g. 101, 102, 103" />
+          <span class="muted" style="font-size:.75rem;">Comma-separated — list one number per unit so guests can be given a specific room.</span>
         </div>
         <div class="field span-2">
           <label>Description</label>

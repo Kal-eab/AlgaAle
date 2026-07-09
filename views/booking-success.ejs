@@ -3,10 +3,19 @@
   <div class="panel">
     <h1>Booking recorded</h1>
     <p class="muted">Your booking for <strong><%= booking.listingTitle %></strong> has been created.</p>
+
+    <% if (booking.assignedRoomNumber) { %>
+      <div class="room-number-callout">
+        <span class="rn-label">Your room number is</span>
+        <span class="rn-value"><%= booking.assignedRoomNumber %></span>
+      </div>
+    <% } %>
+
     <ul class="detail-list">
       <li><strong>Dates:</strong> <%= booking.checkinDate %> – <%= booking.checkoutDate %></li>
       <li><strong>Guests:</strong> <%= booking.guests %></li>
       <li><strong>Nights:</strong> <%= booking.nights %></li>
+      <% if (booking.assignedRoomNumber) { %><li><strong>Room number:</strong> <%= booking.assignedRoomNumber %></li><% } %>
       <li><strong>Total:</strong> <%= money(booking.total) %> birr</li>
       <li><strong>Payment status:</strong> <%= booking.paymentStatus %></li>
     </ul>

@@ -1,0 +1,66 @@
+<%- include('../partials/header', { title: 'Occupancy — AlgaAle' }) %>
+<%
+  function fmtDate(s){ var d=new Date(s+'T00:00:00'); return isNaN(d)?s:d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}); }
+%>
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Room occupancy</h1>
+      <p class="muted" style="margin:4px 0 0;"><%= fmtDate(date) %> — which specific rooms are taken vs free.</p>
+    </div>
+    <div>
+      <a href="/provider/occupancy?date=<%= prev %>" class="btn btn-ghost btn-sm">‹ Prev day</a>
+      <a href="/provider/occupancy" class="btn btn-ghost btn-sm">Today</a>
+      <a href="/provider/occupancy?date=<%= next %>" class="btn btn-ghost btn-sm">Next day ›</a>
+    </div>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/provider" class="btn btn-ghost">Overview</a>
+    <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
+    <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
+    <a href="/provider/occupancy" class="btn btn-ghost">Occupancy</a>
+  </div>
+
+  <div class="stat-cards">
+    <div class="panel stat-card"><div class="stat-num"><%= totals.occupied %></div><div class="stat-label">Occupied</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= totals.free %></div><div class="stat-label">Free</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= totals.blocked %></div><div class="stat-label">Blocked</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= totals.unassigned %></div><div class="stat-label">In-house, no room #</div></div>
+  </div>
+
+  <% if (groups.length === 0) { %>
+    <div class="empty">
+      <p>No numbered rooms yet. Add room numbers to a room type (Rooms → Room numbers) to track occupancy here.</p>
+    </div>
+  <% } else { %>
+    <% groups.forEach(function(g){ %>
+      <div class="occ-group">
+        <div class="admin-head" style="margin:16px 0 10px;">
+          <h3 style="margin:0;"><%= g.listing.title %></h3>
+        </div>
+        <% g.rooms.forEach(function(r){ %>
+          <div class="panel" style="margin-bottom:14px;">
+            <div class="admin-head" style="margin:0 0 10px;">
+              <h4 style="margin:0;"><%= r.room.name %> <span class="muted" style="font-weight:400;">· <%= r.room.roomNumbers.length %> rooms</span></h4>
+              <% if (r.unassigned > 0) { %>
+                <span class="rn-none"><%= r.unassigned %> in-house without a room number</span>
+              <% } %>
+            </div>
+            <div class="occ-grid">
+              <% r.units.forEach(function(u){ %>
+                <div class="occ-card is-<%= u.status %>">
+                  <div class="occ-num">Room <%= u.number %></div>
+                  <div class="occ-status"><%= u.status %></div>
+                  <% if (u.who) { %><div class="occ-who"><%= u.who %></div><% } %>
+                </div>
+              <% }) %>
+            </div>
+          </div>
+        <% }) %>
+      </div>
+    <% }) %>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>

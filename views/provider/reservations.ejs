@@ -13,6 +13,7 @@
     <a href="/provider" class="btn btn-ghost">Overview</a>
     <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
     <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
+    <a href="/provider/occupancy" class="btn btn-ghost">Occupancy</a>
   </div>
 
   <div class="res-tabs">
@@ -30,13 +31,34 @@
   <% } else { %>
   <table class="table">
     <thead>
-      <tr><th>Guest</th><th>Listing / Room</th><th>Check-in</th><th>Check-out</th><th>Nights</th><th>Rooms</th><th>Status</th><th>Payment</th><th>Total</th><th>Actions</th></tr>
+      <tr><th>Guest</th><th>Listing / Room</th><th>Room #</th><th>Check-in</th><th>Check-out</th><th>Nights</th><th>Rooms</th><th>Status</th><th>Payment</th><th>Total</th><th>Actions</th></tr>
     </thead>
     <tbody>
       <% list.forEach(function(b){ %>
         <tr>
           <td><strong><%= b.name %></strong><br><span class="muted"><%= b.phone %></span></td>
           <td><%= b.listingTitle %><% if (b.roomId && roomName[b.roomId]) { %><br><span class="muted"><%= roomName[b.roomId] %></span><% } %></td>
+          <td>
+            <% var isActive = ['confirmed','accepted','checked_in'].includes(b.status); %>
+            <% if (b.assignedRoomNumber) { %>
+              <span class="rn-pill"><%= b.assignedRoomNumber %></span>
+            <% } else if (isActive && assignOptions[b.id]) { %>
+              <span class="rn-none">Unassigned</span>
+            <% } else { %>
+              <span class="muted">—</span>
+            <% } %>
+            <% if (assignOptions[b.id] && assignOptions[b.id].length) { %>
+              <form action="/provider/reservations/<%= b.id %>/room-number" method="POST" class="rn-reassign">
+                <input type="hidden" name="tab" value="<%= tab %>" />
+                <select name="roomNumber" onchange="this.form.submit()">
+                  <option value="">— assign —</option>
+                  <% assignOptions[b.id].forEach(function(n){ %>
+                    <option value="<%= n %>" <%= b.assignedRoomNumber === n ? 'selected' : '' %>><%= n %></option>
+                  <% }) %>
+                </select>
+              </form>
+            <% } %>
+          </td>
           <td><%= b.checkinDate || '—' %></td>
           <td><%= b.checkoutDate || '—' %></td>
           <td><%= b.nights != null ? b.nights : '—' %></td>

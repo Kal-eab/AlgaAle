@@ -194,6 +194,10 @@
               </select>
             </div>
             <div class="field" style="grid-column:1 / -1;">
+              <label>Room numbers</label>
+              <input type="text" name="roomNumbers" value="<%= (rm.roomNumbers || []).join(', ') %>" placeholder="e.g. 101, 102, 103" />
+            </div>
+            <div class="field" style="grid-column:1 / -1;">
               <label>Replace photo (optional)</label>
               <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
             </div>
@@ -239,6 +243,11 @@
             <option value="<%= bt %>"><%= bt.charAt(0).toUpperCase() + bt.slice(1) %></option>
           <% }) %>
         </select>
+      </div>
+      <div class="field" style="grid-column:1 / -1;">
+        <label>Room numbers</label>
+        <input type="text" name="roomNumbers" placeholder="e.g. 101, 102, 103" />
+        <span class="muted" style="font-size:.75rem;">Comma-separated — one per unit, for guest room assignment.</span>
       </div>
       <div class="field" style="grid-column:1 / -1;">
         <label>Photo (optional)</label>

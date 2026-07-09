@@ -751,3 +751,38 @@ img { max-width: 100%; display: block; }
 
 .setup-whole-place { background: var(--bg); border: 1px dashed var(--line); border-radius: 10px;
   padding: 12px 16px; margin: 14px 0; font-size: .88rem; }
+
+/* ---------------------------------------------------------------------------
+   Room number assignment
+--------------------------------------------------------------------------- */
+.room-number-callout {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  background: var(--teal-light); border: 1px solid var(--teal); color: var(--teal-dark);
+  border-radius: var(--radius); padding: 16px; margin: 16px 0; text-align: center;
+}
+.room-number-callout .rn-label { font-size: .8rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.room-number-callout .rn-value { font-size: 2rem; font-weight: 800; line-height: 1.1; }
+
+/* Room-number pill in provider tables */
+.rn-pill { display: inline-block; font-weight: 800; font-size: .8rem; background: var(--teal);
+  color: #fff; border-radius: 8px; padding: 2px 8px; }
+.rn-none { display: inline-block; font-size: .72rem; font-weight: 700; background: #fef2f2;
+  color: #991b1b; border-radius: 8px; padding: 2px 8px; }
+
+/* Reassign inline form */
+.rn-reassign { display: inline-flex; gap: 4px; align-items: center; margin-top: 4px; }
+.rn-reassign select { padding: 3px 6px; font-size: .8rem; border: 1px solid var(--line); border-radius: 6px; }
+
+/* Occupancy board */
+.occ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.occ-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
+.occ-card.is-occupied { border-color: #fca5a5; background: #fef2f2; }
+.occ-card.is-free { border-color: #86efac; background: #f0fdf4; }
+.occ-card.is-blocked { border-color: var(--line); background: #f1f5f9; }
+.occ-num { font-weight: 800; font-size: 1.1rem; }
+.occ-status { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; margin-top: 2px; }
+.occ-card.is-occupied .occ-status { color: #991b1b; }
+.occ-card.is-free .occ-status { color: #166534; }
+.occ-card.is-blocked .occ-status { color: var(--muted); }
+.occ-who { font-size: .82rem; color: var(--body); margin-top: 4px; }
+.occ-group { margin-bottom: 22px; }
