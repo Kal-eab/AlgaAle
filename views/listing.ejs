@@ -1,6 +1,13 @@
 <%- include('partials/header', { title: listing.title + ' — AlgaAle' }) %>
 
 <div class="container listing-page">
+  <% if (typeof isDraftPreview !== 'undefined' && isDraftPreview) { %>
+    <div class="draft-banner">
+      📝 <strong>Draft — not visible to guests.</strong>
+      Finish setup to publish it.
+      <a href="/provider/listings/<%= listing.id %>/setup/review" class="btn btn-sm btn-primary">Continue setup →</a>
+    </div>
+  <% } %>
   <a href="/" class="back-link">← Back to results</a>
 
   <div class="listing-top">
@@ -61,6 +68,19 @@
           <span class="amenity <%= listing.water ? 'on' : 'off' %>"><%= listing.water ? '✔' : '—' %> Water available</span>
           <span class="amenity <%= listing.parking ? 'on' : 'off' %>"><%= listing.parking ? '✔' : '—' %> Parking</span>
         </div>
+
+        <% if (rooms && rooms.length) { %>
+          <h4>Room options</h4>
+          <ul class="detail-list">
+            <% rooms.forEach(function(rm){ var bl = C.bedsLabel(rm.beds); %>
+              <li>
+                <strong><%= rm.name %></strong> —
+                <% if (bl) { %><%= bl %> · <% } %>sleeps <%= rm.capacity %> ·
+                <%= money(Math.round(rm.nightlyRate)) %> birr/night
+              </li>
+            <% }) %>
+          </ul>
+        <% } %>
       </section>
 
       <!-- Reviews -->

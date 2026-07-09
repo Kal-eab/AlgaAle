@@ -64,18 +64,19 @@
         <div class="book-picker">
           <label for="roomSel" class="muted">Room type</label>
           <select id="roomSel" name="roomId" data-room-select>
-            <% rooms.forEach(function(r){ var av = availabilityByRoom[r.id] || 0; %>
+            <% rooms.forEach(function(r){ var av = availabilityByRoom[r.id] || 0; var bl = C.bedsLabel(r.beds); %>
               <option value="<%= r.id %>" data-rate="<%= Math.round(r.nightlyRate) %>"
                       data-available="<%= av %>"
                       <%= room && room.id === r.id ? 'selected' : '' %> <%= av < 1 ? 'disabled' : '' %>>
-                <%= r.name %> — <%= money(Math.round(r.nightlyRate)) %> birr/night<%= av < 1 ? ' — sold out' : ' · ' + av + ' left' %>
+                <%= r.name %><%= bl ? ' — ' + bl : '' %> · sleeps <%= r.capacity %> — <%= money(Math.round(r.nightlyRate)) %> birr/night<%= av < 1 ? ' — sold out' : ' · ' + av + ' left' %>
               </option>
             <% }) %>
           </select>
         </div>
         <% } else if (room) { %>
           <input type="hidden" name="roomId" value="<%= room.id %>" />
-          <div class="book-picker"><span class="muted"><%= room.name %></span></div>
+          <% var rbl = C.bedsLabel(room.beds); %>
+          <div class="book-picker"><span class="muted"><%= room.name %><%= rbl ? ' — ' + rbl : '' %> · sleeps <%= room.capacity %></span></div>
         <% } %>
         <div class="book-picker">
           <label for="qtySel" class="muted">Rooms</label>

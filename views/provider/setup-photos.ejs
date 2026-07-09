@@ -1,0 +1,91 @@
+<%- include('../partials/header', { title: 'Photos — ' + listing.title }) %>
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Photos</h1>
+    <a href="/provider" class="btn btn-ghost">Save &amp; exit</a>
+  </div>
+
+  <%- include('_setup-steps', { current: 'photos', progress: progress, listing: listing }) %>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Property photos</h3>
+    <p class="muted">Listings with real photos get significantly more bookings. Add at least one.</p>
+
+    <form action="/provider/listings/<%= listing.id %>/setup/photos" method="POST" enctype="multipart/form-data">
+      <div class="photo-grid">
+        <% C.PHOTO_CATEGORIES.forEach(function(cat){
+             var label = cat.charAt(0).toUpperCase() + cat.slice(1);
+             var imgs = (listing.photos && listing.photos[cat]) ? listing.photos[cat] : [];
+        %>
+          <div class="photo-cat">
+            <label><%= label %></label>
+            <input type="file" name="photo_<%= cat %>" accept="image/jpeg,image/png,image/webp" multiple />
+            <% if (imgs.length) { %>
+              <div class="existing-photos">
+                <% imgs.forEach(function(src){ %>
+                  <div class="existing-photo">
+                    <img src="<%= src %>" alt="" />
+                    <button type="submit"
+                            form="delphoto-<%= cat %>-<%= src.replace(/[^a-zA-Z0-9]/g,'') %>"
+                            class="photo-del" title="Remove">×</button>
+                  </div>
+                <% }) %>
+              </div>
+            <% } %>
+          </div>
+        <% }) %>
+      </div>
+      <div class="setup-actions">
+        <button type="submit" class="btn btn-primary">Upload property photos</button>
+      </div>
+    </form>
+  </section>
+
+  <%# Delete-photo forms live OUTSIDE the upload form to avoid invalid nesting %>
+  <% C.PHOTO_CATEGORIES.forEach(function(cat){
+       var imgs = (listing.photos && listing.photos[cat]) ? listing.photos[cat] : [];
+       imgs.forEach(function(src){ %>
+    <form id="delphoto-<%= cat %>-<%= src.replace(/[^a-zA-Z0-9]/g,'') %>"
+          action="/provider/listings/<%= listing.id %>/photo/delete" method="POST"
+          style="display:none;">
+      <input type="hidden" name="from" value="setup" />
+      <input type="hidden" name="category" value="<%= cat %>" />
+      <input type="hidden" name="url" value="<%= src %>" />
+    </form>
+  <% }); }) %>
+
+  <% if (rooms && rooms.length) { %>
+  <section class="panel">
+    <h3 style="margin-top:0;">Room photos</h3>
+    <p class="muted">Add a photo for each room type (optional but recommended).</p>
+    <% rooms.forEach(function(rm){ %>
+      <div class="room-type-row">
+        <div style="flex:0 0 auto;">
+          <% if (rm.photo) { %>
+            <img src="<%= rm.photo %>" alt="" style="width:96px;height:72px;object-fit:cover;border-radius:8px;" />
+          <% } else { %>
+            <div style="width:96px;height:72px;border-radius:8px;background:#e5e7eb;display:flex;align-items:center;justify-content:center;font-size:.7rem;color:#9ca3af;">No photo</div>
+          <% } %>
+        </div>
+        <form action="/provider/listings/<%= listing.id %>/rooms/<%= rm.id %>" method="POST"
+              enctype="multipart/form-data" class="rt-main" style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+          <input type="hidden" name="from" value="setup" />
+          <div class="field" style="flex:1;min-width:180px;margin:0;">
+            <label><%= rm.name %></label>
+            <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required />
+          </div>
+          <button type="submit" class="btn btn-sm btn-primary">Save photo</button>
+        </form>
+      </div>
+    <% }) %>
+  </section>
+  <% } %>
+
+  <div class="setup-actions">
+    <a href="/provider/listings/<%= listing.id %>/setup/rooms" class="btn btn-ghost">← Back</a>
+    <span class="spacer"></span>
+    <a href="/provider/listings/<%= listing.id %>/setup/review" class="btn btn-primary">Save &amp; continue →</a>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

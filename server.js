@@ -293,7 +293,7 @@ app.get('/', wrap(async (req, res) => {
   }
 
   let listings = await store.getListings();
-  listings = listings.filter((l) => l.status !== 'hidden');
+  listings = listings.filter((l) => l.status === 'active');
 
   const score = (l) => (l.featured ? 2 : 0) + (l.verified ? 1 : 0);
   const byRecommended = (a, b) => (score(b) - score(a)) || (b.createdAt - a.createdAt);
@@ -321,7 +321,7 @@ app.get('/', wrap(async (req, res) => {
 app.get('/search', wrap(async (req, res) => {
   const f = req.query;
   let listings = await store.getListings();
-  listings = listings.filter((l) => l.status !== 'hidden');
+  listings = listings.filter((l) => l.status === 'active');
 
   if (f.q) {
     const q = String(f.q).toLowerCase();
@@ -419,7 +419,9 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   const u = req.session.user;
   const isStaff = u && (u.role === 'admin' || u.role === 'owner');
   const isOwnerOfListing = u && listing.ownerId === u.id;
-  if (listing.status === 'hidden' && !isStaff && !isOwnerOfListing) {
+  // Drafts and hidden listings are invisible to guests; the owner/staff can
+  // still open their own to preview (draft shows a "not visible" banner).
+  if (listing.status !== 'active' && !isStaff && !isOwnerOfListing) {
     req.flash('error', 'That listing is not available.');
     return res.redirect('/');
   }
@@ -441,7 +443,8 @@ app.get('/listing/:id', requireUser, wrap(async (req, res) => {
   res.render('listing', {
     listing, reviews, avg, rooms, baseNightly,
     checkin, checkout, guests,
-    nights: nights > 0 ? nights : 0
+    nights: nights > 0 ? nights : 0,
+    isDraftPreview: listing.status === 'draft'
   });
 }));
 
@@ -813,10 +816,17 @@ app.get('/provider', requireProvider, wrap(async (req, res) => {
   const inHouse = active.filter((b) => b.checkinDate && b.checkinDate <= today && b.checkoutDate > today);
   const departures = active.filter((b) => b.checkoutDate === today);
 
-  // Occupancy tonight = (units in stays spanning tonight + blocked units) / total units
+  // Occupancy tonight = (units in stays spanning tonight + blocked units) / total units.
+  // Drafts aren't live, so their units don't count toward occupancy. We also note
+  // the first incomplete wizard step for each draft (drives "Continue setup →").
   let totalUnits = 0;
+  const continueStep = {};
   for (const l of myListings) {
     const rooms = await store.getRoomsByListing(l.id);
+    if (l.status === 'draft') {
+      continueStep[l.id] = firstIncompleteStep(l, rooms);
+      continue;
+    }
     totalUnits += rooms.length ? rooms.reduce((s, r) => s + (r.totalUnits || 1), 0) : 1;
   }
   const blocks = await store.getBlocksByListings(ids);
@@ -842,19 +852,65 @@ app.get('/provider', requireProvider, wrap(async (req, res) => {
       occupancy, totalUnits, revenueMonth
     },
     recent: all.slice(0, 8),
-    newCount, today
+    newCount, today, continueStep
   });
 }));
 
+// ---------------------------------------------------------------------------
+// Property onboarding wizard (draft → publish) helpers
+// ---------------------------------------------------------------------------
+// A listing the provider (or admin/owner) may manage.
+function canManageListing(req, listing) {
+  const u = req.session.user;
+  if (!u || !listing) return false;
+  if (u.role === 'admin' || u.role === 'owner') return true;
+  return listing.ownerId === u.id;
+}
+
+// Progress + gating for the stepper UI.
+function setupProgress(listing, rooms) {
+  const hasPhotos = listing.photos && Object.values(listing.photos).some((a) => a && a.length);
+  return {
+    property: true,                               // exists => step 1 done
+    rooms: rooms.length > 0,                       // at least one room type
+    photos: !!hasPhotos,
+    // Whole-place path counts as "rooms satisfied" via a nightly price.
+    publishable: !!hasPhotos && (rooms.length > 0 || Number(listing.price) > 0)
+  };
+}
+
+// First step still needing attention (drives "Continue setup →").
+function firstIncompleteStep(listing, rooms) {
+  const p = setupProgress(listing, rooms);
+  if (!p.rooms && !(Number(listing.price) > 0)) return 'rooms';
+  if (!p.photos) return 'photos';
+  return 'review';
+}
+
+// Parse the beds picker (beds_<type> qty fields) into a [{type,qty}] array.
+function parseBeds(body) {
+  const beds = [];
+  C.BED_TYPES.forEach((t) => {
+    const qty = Math.max(0, Math.min(4, Number(body['beds_' + t.value]) || 0));
+    if (qty > 0) beds.push({ type: t.value, qty });
+  });
+  return beds;
+}
+
 app.get('/provider/listings/new', requireProvider, (req, res) => {
-  res.render('provider/listing-form', { listing: null, rooms: [] });
+  res.render('provider/setup-property', { listing: null });
 });
 
-app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
+app.post('/provider/listings', requireProvider, wrap(async (req, res) => {
   const b = req.body;
   const u = req.session.user;
+  const id = nanoid(10);
+  // Address line has no column — fold it into the description (§4).
+  const addr = (b.addressLine || '').trim();
+  const description = [b.description || '', addr ? 'Address: ' + addr : '']
+    .filter(Boolean).join('\n\n');
   await store.createListing({
-    id: nanoid(10),
+    id,
     ownerId: u.id,
     title: b.title,
     type: b.type,
@@ -863,20 +919,19 @@ app.post('/provider/listings', requireProvider, upload.fields(photoFields), wrap
     period: b.period,
     audience: b.audience,
     ...parseAmenities(b),
-    description: b.description || '',
+    description,
     ownerName: u.fullName,
     ownerPhone: u.phone || '',
     verified: false,
     featured: false,
-    status: 'active',
-    photos: collectUploadedPhotos(req.files, null),
+    status: 'draft',
+    photos: {},
     checkinTime: b.checkinTime || null,
     checkoutTime: b.checkoutTime || null,
     cancellationPolicy: b.cancellationPolicy || '',
     createdAt: Date.now()
   });
-  req.flash('success', 'Listing created and is now live.');
-  res.redirect('/provider');
+  res.redirect('/provider/listings/' + id + '/setup/rooms');
 }));
 
 app.get('/provider/listings/:id/edit', requireProvider, wrap(async (req, res) => {
@@ -937,7 +992,10 @@ app.post('/provider/listings/:id/photo/delete', requireProvider, wrap(async (req
       await store.updateListingPhotos(req.params.id, photos);
     }
   }
-  res.redirect('/provider/listings/' + req.params.id + '/edit');
+  const back = req.body.from === 'setup'
+    ? '/provider/listings/' + req.params.id + '/setup/photos'
+    : '/provider/listings/' + req.params.id + '/edit';
+  res.redirect(back);
 }));
 
 // --- Rooms (room/bed options under a listing) ---
@@ -948,10 +1006,14 @@ app.post('/provider/listings/:id/rooms', requireProvider, upload.single('photo')
     return res.redirect('/provider');
   }
   const b = req.body;
+  const setupBack = (listing.status === 'draft' || b.from === 'setup')
+    ? '/provider/listings/' + listing.id + '/setup/rooms'
+    : '/provider/listings/' + listing.id + '/edit';
   if (!b.name) {
     req.flash('error', 'Room name is required.');
-    return res.redirect('/provider/listings/' + req.params.id + '/edit');
+    return res.redirect(setupBack);
   }
+  const beds = parseBeds(b);
   await store.createRoom({
     id: nanoid(10),
     listingId: listing.id,
@@ -961,12 +1023,14 @@ app.post('/provider/listings/:id/rooms', requireProvider, upload.single('photo')
     photo: req.file ? req.file.path : null,
     sortOrder: Number(b.sortOrder) || 0,
     totalUnits: Math.max(1, Number(b.totalUnits) || 1),
-    bedType: b.bedType || null,
+    // Derive bed_type from the first bed so the legacy UI keeps working.
+    bedType: beds.length ? beds[0].type : (b.bedType || null),
+    beds,
     description: b.roomDescription || '',
     createdAt: Date.now()
   });
   req.flash('success', 'Room added.');
-  res.redirect('/provider/listings/' + req.params.id + '/edit');
+  res.redirect(setupBack);
 }));
 
 app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single('photo'), wrap(async (req, res) => {
@@ -975,12 +1039,15 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
     req.flash('error', 'Listing not found or access denied.');
     return res.redirect('/provider');
   }
+  const b = req.body;
+  const setupBack = (listing.status === 'draft' || b.from === 'setup')
+    ? '/provider/listings/' + listing.id + '/setup/rooms'
+    : '/provider/listings/' + listing.id + '/edit';
   const room = await store.getRoomById(req.params.roomId);
   if (!room || room.listingId !== listing.id) {
     req.flash('error', 'Room not found.');
-    return res.redirect('/provider/listings/' + req.params.id + '/edit');
+    return res.redirect(setupBack);
   }
-  const b = req.body;
   const newTotal = Math.max(1, Number(b.totalUnits) || room.totalUnits || 1);
   // Lowering total_units must not silently strand future bookings: check the
   // peak booked units on future nights before accepting a smaller number.
@@ -994,9 +1061,13 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
     const peakBooked = (room.totalUnits || 1) - available;
     if (newTotal < peakBooked) {
       req.flash('error', `Cannot reduce to ${newTotal} unit(s): up to ${peakBooked} are already booked on future nights. Cancel those bookings first.`);
-      return res.redirect('/provider/listings/' + req.params.id + '/edit');
+      return res.redirect(setupBack);
     }
   }
+  // Only touch beds when the picker was submitted (e.g. the photos step posts
+  // a photo-only form and must not wipe the room's beds).
+  const hasBedFields = C.BED_TYPES.some((t) => b['beds_' + t.value] !== undefined);
+  const beds = hasBedFields ? parseBeds(b) : room.beds;
   await store.updateRoom(room.id, {
     name: b.name || room.name,
     capacity: Number(b.capacity) || room.capacity,
@@ -1004,11 +1075,12 @@ app.post('/provider/listings/:id/rooms/:roomId', requireProvider, upload.single(
     photo: req.file ? req.file.path : room.photo,
     sortOrder: Number(b.sortOrder) || room.sortOrder,
     totalUnits: newTotal,
-    bedType: b.bedType || room.bedType,
+    bedType: beds && beds.length ? beds[0].type : (b.bedType || room.bedType),
+    beds: beds || [],
     description: b.roomDescription != null ? b.roomDescription : room.description
   });
   req.flash('success', 'Room updated.');
-  res.redirect('/provider/listings/' + req.params.id + '/edit');
+  res.redirect(setupBack);
 }));
 
 app.post('/provider/listings/:id/rooms/:roomId/delete', requireProvider, wrap(async (req, res) => {
@@ -1022,7 +1094,86 @@ app.post('/provider/listings/:id/rooms/:roomId/delete', requireProvider, wrap(as
     await store.deleteRoom(room.id);
     req.flash('success', 'Room removed.');
   }
-  res.redirect('/provider/listings/' + req.params.id + '/edit');
+  const setupBack = (listing.status === 'draft' || req.body.from === 'setup')
+    ? '/provider/listings/' + listing.id + '/setup/rooms'
+    : '/provider/listings/' + listing.id + '/edit';
+  res.redirect(setupBack);
+}));
+
+// ===========================================================================
+// PROPERTY ONBOARDING WIZARD — Step 2 rooms · Step 3 photos · Step 4 review
+// ===========================================================================
+// Load a listing for a wizard step, enforcing ownership. Returns null (after
+// redirecting) when the caller should stop.
+async function loadWizardListing(req, res) {
+  const listing = await store.getListingById(req.params.id);
+  if (!canManageListing(req, listing)) {
+    req.flash('error', 'Listing not found or you do not have permission to edit it.');
+    res.redirect('/provider');
+    return null;
+  }
+  return listing;
+}
+
+// Step 2 — room types
+app.get('/provider/listings/:id/setup/rooms', requireProvider, wrap(async (req, res) => {
+  const listing = await loadWizardListing(req, res);
+  if (!listing) return;
+  const rooms = await store.getRoomsByListing(listing.id);
+  res.render('provider/setup-rooms', {
+    listing, rooms, progress: setupProgress(listing, rooms)
+  });
+}));
+
+// Step 3 — photos
+app.get('/provider/listings/:id/setup/photos', requireProvider, wrap(async (req, res) => {
+  const listing = await loadWizardListing(req, res);
+  if (!listing) return;
+  const rooms = await store.getRoomsByListing(listing.id);
+  res.render('provider/setup-photos', {
+    listing, rooms, progress: setupProgress(listing, rooms)
+  });
+}));
+
+// Step 3 POST — property photos only (per-room photos reuse the room handler)
+app.post('/provider/listings/:id/setup/photos', requireProvider, upload.fields(photoFields), wrap(async (req, res) => {
+  const listing = await loadWizardListing(req, res);
+  if (!listing) return;
+  const photos = collectUploadedPhotos(req.files, listing.photos);
+  await store.updateListingPhotos(listing.id, photos);
+  req.flash('success', 'Photos saved.');
+  res.redirect('/provider/listings/' + listing.id + '/setup/photos');
+}));
+
+// Step 4 — review & publish
+app.get('/provider/listings/:id/setup/review', requireProvider, wrap(async (req, res) => {
+  const listing = await loadWizardListing(req, res);
+  if (!listing) return;
+  const rooms = await store.getRoomsByListing(listing.id);
+  res.render('provider/setup-review', {
+    listing, rooms,
+    progress: setupProgress(listing, rooms),
+    photoCount: listingPhotos(listing).length
+  });
+}));
+
+// Publish — re-run the completeness gate server-side, then go live.
+app.post('/provider/listings/:id/publish', requireProvider, wrap(async (req, res) => {
+  const listing = await loadWizardListing(req, res);
+  if (!listing) return;
+  const rooms = await store.getRoomsByListing(listing.id);
+  const progress = setupProgress(listing, rooms);
+  if (!progress.publishable) {
+    req.flash('error', 'Add at least one photo and one room type (or a whole-place price) before publishing.');
+    return res.redirect('/provider/listings/' + listing.id + '/setup/review');
+  }
+  // Optional admin review queue (off by default): publish → hidden for approval.
+  const review = process.env.LISTING_REVIEW === '1';
+  await store.updateListing(listing.id, { ...listing, status: review ? 'hidden' : 'active' });
+  req.flash('success', review
+    ? 'Submitted for review — we\'ll make it live shortly.'
+    : 'Your property is live on AlgaAle 🎉');
+  res.redirect('/provider');
 }));
 
 // ===========================================================================

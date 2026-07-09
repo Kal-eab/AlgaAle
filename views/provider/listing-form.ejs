@@ -7,6 +7,14 @@
     <a href="/provider" class="btn btn-ghost">← My listings</a>
   </div>
 
+  <% if (editing) { %>
+    <p class="muted" style="margin:-6px 0 16px;">
+      Guided setup:
+      <a href="/provider/listings/<%= listing.id %>/setup/rooms">Edit rooms → step 2</a> ·
+      <a href="/provider/listings/<%= listing.id %>/setup/photos">Edit photos → step 3</a>
+    </p>
+  <% } %>
+
   <form action="<%= editing ? '/provider/listings/' + listing.id : '/provider/listings' %>" method="POST" enctype="multipart/form-data" class="listing-form">
     <div class="form-grid">
       <div class="field span-2">

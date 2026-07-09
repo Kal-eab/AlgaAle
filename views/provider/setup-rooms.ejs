@@ -1,0 +1,153 @@
+<%- include('../partials/header', { title: 'Room types — ' + listing.title }) %>
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Room types</h1>
+    <a href="/provider" class="btn btn-ghost">Save &amp; exit</a>
+  </div>
+
+  <%- include('_setup-steps', { current: 'rooms', progress: progress, listing: listing }) %>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Rooms in “<%= listing.title %>”</h3>
+    <p class="muted">Add each kind of room guests can book (e.g. “Standard”, “Family Suite”). Set how many identical units you have of each.</p>
+
+    <% if (rooms && rooms.length) { %>
+      <% rooms.forEach(function(rm){ %>
+        <div class="room-type-row">
+          <div class="rt-main">
+            <div class="rt-name"><%= rm.name %></div>
+            <div class="rt-meta">
+              <% var bl = C.bedsLabel(rm.beds); %>
+              <% if (bl) { %><%= bl %> · <% } %>sleeps <%= rm.capacity %> ·
+              <%= money(Math.round(rm.nightlyRate)) %> birr/night ·
+              <%= rm.totalUnits || 1 %> unit<%= (rm.totalUnits || 1) > 1 ? 's' : '' %>
+            </div>
+            <details style="margin-top:8px;">
+              <summary class="btn btn-sm btn-ghost" style="display:inline-block;">Edit</summary>
+              <form action="/provider/listings/<%= listing.id %>/rooms/<%= rm.id %>" method="POST"
+                    enctype="multipart/form-data" style="margin-top:12px;">
+                <input type="hidden" name="from" value="setup" />
+                <div class="form-grid">
+                  <div class="field span-2">
+                    <label>Room name</label>
+                    <input type="text" name="name" value="<%= rm.name %>" required />
+                  </div>
+                  <div class="field">
+                    <label>Max guests</label>
+                    <input type="number" name="capacity" min="1" value="<%= rm.capacity %>" />
+                  </div>
+                  <div class="field">
+                    <label>Nightly rate (birr)</label>
+                    <input type="number" name="nightlyRate" min="0" step="50" value="<%= rm.nightlyRate %>" />
+                  </div>
+                  <div class="field">
+                    <label>Units of this room</label>
+                    <input type="number" name="totalUnits" min="1" value="<%= rm.totalUnits || 1 %>" />
+                  </div>
+                  <div class="field span-2">
+                    <label>Description</label>
+                    <input type="text" name="roomDescription" value="<%= rm.description || '' %>" placeholder="Optional" />
+                  </div>
+                </div>
+                <label style="margin-top:10px;display:block;">Beds</label>
+                <div class="beds-picker">
+                  <% C.BED_TYPES.forEach(function(bt){
+                       var existing = (rm.beds || []).find(function(x){ return x.type === bt.value; });
+                  %>
+                    <div class="bed-qty">
+                      <label><%= bt.label %></label>
+                      <input type="number" name="beds_<%= bt.value %>" min="0" max="4" value="<%= existing ? existing.qty : 0 %>" />
+                    </div>
+                  <% }) %>
+                </div>
+                <div class="field" style="margin-top:12px;">
+                  <label>Replace photo (optional)</label>
+                  <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
+                </div>
+                <div class="setup-actions">
+                  <button type="submit" class="btn btn-sm btn-primary">Save room</button>
+                </div>
+              </form>
+            </details>
+          </div>
+          <div style="flex:0 0 auto;">
+            <% if (rm.photo) { %>
+              <img src="<%= rm.photo %>" alt="" style="width:88px;height:66px;object-fit:cover;border-radius:8px;" />
+            <% } %>
+          </div>
+          <form action="/provider/listings/<%= listing.id %>/rooms/<%= rm.id %>/delete" method="POST"
+                onsubmit="return confirm('Remove this room type?')">
+            <input type="hidden" name="from" value="setup" />
+            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+          </form>
+        </div>
+      <% }) %>
+    <% } else { %>
+      <p class="muted">No room types yet.</p>
+    <% } %>
+
+    <div class="setup-whole-place">
+      <strong>This is a single whole place (no separate rooms)?</strong>
+      It'll be booked as one unit at the property price you set in step 1.
+      <a href="/provider/listings/<%= listing.id %>/setup/photos">Skip → book as one unit</a>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Add a room type</h3>
+    <form action="/provider/listings/<%= listing.id %>/rooms" method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="from" value="setup" />
+      <div class="form-grid">
+        <div class="field span-2">
+          <label>Room name *</label>
+          <input type="text" name="name" required placeholder="e.g. Family Suite" />
+        </div>
+        <div class="field">
+          <label>Max guests</label>
+          <input type="number" name="capacity" min="1" value="2" />
+        </div>
+        <div class="field">
+          <label>Nightly rate (birr) *</label>
+          <input type="number" name="nightlyRate" min="0" step="50" required />
+        </div>
+        <div class="field">
+          <label>Units of this room *</label>
+          <input type="number" name="totalUnits" min="1" value="1" />
+          <span class="muted" style="font-size:.75rem;">How many identical rooms you have (drives availability).</span>
+        </div>
+        <div class="field span-2">
+          <label>Description</label>
+          <input type="text" name="roomDescription" placeholder="Optional" />
+        </div>
+      </div>
+
+      <label style="margin-top:12px;display:block;">Beds</label>
+      <p class="muted" style="margin-top:2px;">How many of each bed this room has.</p>
+      <div class="beds-picker">
+        <% C.BED_TYPES.forEach(function(bt){ %>
+          <div class="bed-qty">
+            <label><%= bt.label %></label>
+            <input type="number" name="beds_<%= bt.value %>" min="0" max="4" value="0" />
+          </div>
+        <% }) %>
+      </div>
+
+      <div class="field" style="margin-top:12px;">
+        <label>Photo (optional — the Photos step covers this too)</label>
+        <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" />
+      </div>
+
+      <div class="setup-actions">
+        <button type="submit" class="btn btn-primary">+ Add room type</button>
+      </div>
+    </form>
+  </section>
+
+  <div class="setup-actions">
+    <a href="/provider/listings/new" class="btn btn-ghost" onclick="history.back();return false;">← Back</a>
+    <span class="spacer"></span>
+    <a href="/provider/listings/<%= listing.id %>/setup/photos" class="btn btn-primary">Save &amp; continue →</a>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

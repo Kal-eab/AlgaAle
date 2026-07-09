@@ -1,0 +1,34 @@
+<%
+  // current: 'property' | 'rooms' | 'photos' | 'review'
+  var steps = [
+    { key: 'property', label: 'Property',          done: true },
+    { key: 'rooms',    label: 'Room types',        done: progress.rooms },
+    { key: 'photos',   label: 'Photos',            done: progress.photos },
+    { key: 'review',   label: 'Review & publish',  done: progress.publishable }
+  ];
+  var order = ['property', 'rooms', 'photos', 'review'];
+  var curIdx = order.indexOf(current);
+  function stepUrl(key) {
+    if (key === 'property') return '/provider/listings/new';
+    return '/provider/listings/' + listing.id + '/setup/' + key;
+  }
+%>
+<div class="book-steps setup-steps">
+  <% steps.forEach(function(s, i){
+       var isCurrent = s.key === current;
+       // A step chip links back once you're past it, or if it's already done.
+       var linkable = listing && listing.id && (i < curIdx || s.done) && !isCurrent;
+       var cls = isCurrent ? 'active' : (s.done ? 'done' : '');
+  %>
+    <% if (i > 0) { %><span class="bstep-sep">›</span><% } %>
+    <% if (linkable) { %>
+      <a class="bstep <%= cls %>" href="<%= stepUrl(s.key) %>">
+        <span class="bstep-n"><%= s.done && !isCurrent ? '✓' : (i + 1) %></span> <%= s.label %>
+      </a>
+    <% } else { %>
+      <span class="bstep <%= cls %>">
+        <span class="bstep-n"><%= s.done && !isCurrent ? '✓' : (i + 1) %></span> <%= s.label %>
+      </span>
+    <% } %>
+  <% }) %>
+</div>

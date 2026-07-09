@@ -1,0 +1,106 @@
+<%- include('../partials/header', { title: 'Add a property — AlgaAle' }) %>
+<%
+  var editing = !!listing;
+  var progress = { property: true, rooms: false, photos: false, publishable: false };
+%>
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Add a property</h1>
+    <a href="/provider" class="btn btn-ghost">← My listings</a>
+  </div>
+
+  <%- include('_setup-steps', { current: 'property', progress: progress, listing: listing }) %>
+
+  <form action="/provider/listings" method="POST" class="panel">
+    <p class="muted" style="margin-top:0;">Tell us about the building. You'll add rooms and photos next.</p>
+
+    <div class="form-grid">
+      <div class="field span-2">
+        <label>Property name / title *</label>
+        <input type="text" name="title" required value="<%= editing ? listing.title : '' %>" placeholder="e.g. Sunrise Guest House — Bole" />
+      </div>
+
+      <div class="field">
+        <label>Type *</label>
+        <select name="type" required>
+          <% C.TYPES.forEach(function(t){ %>
+            <option value="<%= t.value %>" <%= editing && listing.type === t.value ? 'selected' : '' %>><%= t.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Area *</label>
+        <select name="area" required>
+          <% C.AREAS.forEach(function(a){ %>
+            <option value="<%= a %>" <%= editing && listing.area === a ? 'selected' : '' %>><%= a %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field span-2">
+        <label>Address line</label>
+        <input type="text" name="addressLine" value="" placeholder="Street / building / landmark (shown in the description)" />
+        <span class="muted" style="font-size:.75rem;">Folded into the description — the exact address is only shared after booking.</span>
+      </div>
+
+      <div class="field">
+        <label>Base price (birr)</label>
+        <input type="number" name="price" min="0" step="50" value="<%= editing ? listing.price : '' %>" />
+        <span class="muted" style="font-size:.75rem;">Whole-place fallback price if you don't add separate rooms.</span>
+      </div>
+
+      <div class="field">
+        <label>Rental term</label>
+        <select name="period">
+          <% C.PERIODS.forEach(function(p){ %>
+            <option value="<%= p.value %>" <%= editing && listing.period === p.value ? 'selected' : (p.value === 'daily' ? 'selected' : '') %>><%= p.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Suitable for</label>
+        <select name="audience">
+          <% C.AUDIENCES.forEach(function(a){ %>
+            <option value="<%= a.value %>" <%= editing && listing.audience === a.value ? 'selected' : '' %>><%= a.label %></option>
+          <% }) %>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Check-in from</label>
+        <input type="time" name="checkinTime" value="<%= (editing && listing.checkinTime) || '14:00' %>" />
+      </div>
+      <div class="field">
+        <label>Check-out before</label>
+        <input type="time" name="checkoutTime" value="<%= (editing && listing.checkoutTime) || '11:00' %>" />
+      </div>
+
+      <div class="field span-2">
+        <label>Description</label>
+        <textarea name="description" rows="4" placeholder="Describe the property, compound, neighbourhood, and house rules…"><%= editing ? listing.description : '' %></textarea>
+      </div>
+
+      <div class="field span-2">
+        <label>Cancellation policy</label>
+        <textarea name="cancellationPolicy" rows="2" placeholder="e.g. Non-refundable once paid; free date change up to 48h before check-in."><%= (editing && listing.cancellationPolicy) || '' %></textarea>
+      </div>
+    </div>
+
+    <fieldset class="amenity-fieldset">
+      <legend>Amenities</legend>
+      <% C.AMENITIES.forEach(function(am){ %>
+        <label class="check"><input type="checkbox" name="<%= am.key %>" <%= editing && listing[am.key] ? 'checked' : '' %>> <%= am.label %></label>
+      <% }) %>
+    </fieldset>
+
+    <div class="setup-actions">
+      <a href="/provider" class="btn btn-ghost">← Cancel</a>
+      <span class="spacer"></span>
+      <button type="submit" class="btn btn-primary">Save &amp; continue →</button>
+    </div>
+  </form>
+</div>
+
+<%- include('../partials/footer') %>

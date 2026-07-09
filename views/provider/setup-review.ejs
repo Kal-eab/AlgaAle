@@ -1,0 +1,91 @@
+<%- include('../partials/header', { title: 'Review & publish — ' + listing.title }) %>
+<%
+  var wholePlace = rooms.length === 0 && Number(listing.price) > 0;
+  var reasons = [];
+  if (!progress.photos) reasons.push('Add at least one photo');
+  if (!(rooms.length > 0 || Number(listing.price) > 0)) reasons.push('Add at least one room type, or a whole-place price');
+%>
+<div class="container admin">
+  <div class="admin-head">
+    <h1>Review &amp; publish</h1>
+    <a href="/provider" class="btn btn-ghost">Save &amp; exit</a>
+  </div>
+
+  <%- include('_setup-steps', { current: 'review', progress: progress, listing: listing }) %>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Property</h3>
+    <p style="margin:0;">
+      <strong><%= listing.title %></strong> ·
+      <%= C.typeLabel(listing.type) %> · <%= listing.area %>, Addis Ababa
+    </p>
+    <p class="muted" style="margin:6px 0 0;">
+      Check-in from <%= listing.checkinTime || '14:00' %> · check-out before <%= listing.checkoutTime || '11:00' %> ·
+      <%= C.audienceLabel(listing.audience) %>
+    </p>
+    <% if (listing.description) { %><p style="margin:10px 0 0;white-space:pre-line;"><%= listing.description %></p><% } %>
+    <% if (listing.cancellationPolicy) { %>
+      <p class="muted" style="margin:10px 0 0;"><strong>Cancellation:</strong> <%= listing.cancellationPolicy %></p>
+    <% } %>
+    <a href="/provider/listings/new" class="btn btn-sm btn-ghost" style="margin-top:10px;"
+       onclick="history.length>1&&history.go(-1);return false;">Edit step 1</a>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Room types</h3>
+    <% if (rooms.length) { %>
+      <table class="table">
+        <thead><tr><th>Room</th><th>Beds</th><th>Guests</th><th>Price/night</th><th>Units</th></tr></thead>
+        <tbody>
+          <% rooms.forEach(function(rm){ %>
+            <tr>
+              <td><strong><%= rm.name %></strong></td>
+              <td><%= C.bedsLabel(rm.beds) || '—' %></td>
+              <td><%= rm.capacity %></td>
+              <td><%= money(Math.round(rm.nightlyRate)) %> birr</td>
+              <td><%= rm.totalUnits || 1 %></td>
+            </tr>
+          <% }) %>
+        </tbody>
+      </table>
+    <% } else if (wholePlace) { %>
+      <p class="muted">Whole place — booked as one unit at <strong><%= money(listing.price) %> birr / <%= C.periodLabel(listing.period).toLowerCase() %></strong>.</p>
+    <% } else { %>
+      <p class="muted">No rooms added yet.</p>
+    <% } %>
+    <a href="/provider/listings/<%= listing.id %>/setup/rooms" class="btn btn-sm btn-ghost">Edit rooms</a>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Photos</h3>
+    <p class="muted"><%= photoCount %> photo<%= photoCount === 1 ? '' : 's' %> uploaded.</p>
+    <a href="/provider/listings/<%= listing.id %>/setup/photos" class="btn btn-sm btn-ghost">Edit photos</a>
+  </section>
+
+  <section class="panel">
+    <h3 style="margin-top:0;">Ready to publish?</h3>
+    <ul class="setup-checklist">
+      <li class="ok">✓ Property details</li>
+      <li class="<%= (rooms.length > 0 || Number(listing.price) > 0) ? 'ok' : 'miss' %>">
+        <%= (rooms.length > 0 || Number(listing.price) > 0) ? '✓' : '✗' %>
+        <%= rooms.length > 0 ? 'At least one room type' : (wholePlace ? 'Whole-place price set' : 'At least one room type or whole-place price') %>
+      </li>
+      <li class="<%= progress.photos ? 'ok' : 'miss' %>">
+        <%= progress.photos ? '✓' : '✗' %> At least one photo
+      </li>
+    </ul>
+
+    <form action="/provider/listings/<%= listing.id %>/publish" method="POST" class="setup-actions" style="margin-top:0;">
+      <a href="/provider/listings/<%= listing.id %>/setup/photos" class="btn btn-ghost">← Back</a>
+      <span class="spacer"></span>
+      <button type="submit" class="btn btn-primary" <%= progress.publishable ? '' : 'disabled' %>>
+        Publish
+      </button>
+    </form>
+    <% if (!progress.publishable) { %>
+      <p class="muted" style="margin-top:10px;">Before publishing: <%= reasons.join(' · ') %>.</p>
+    <% } %>
+  </section>
+</div>
+
+<%- include('../partials/footer') %>

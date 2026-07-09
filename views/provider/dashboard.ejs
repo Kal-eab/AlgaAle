@@ -79,11 +79,19 @@
             <div class="status-pills">
               <% if (l.verified) { %><span class="pill pill-verified">✅ Verified</span><% } %>
               <% if (l.featured) { %><span class="pill pill-featured">★ Featured</span><% } %>
-              <span class="pill pill-<%= l.status === 'hidden' ? 'hidden' : 'active' %>"><%= l.status === 'hidden' ? 'Hidden' : 'Active' %></span>
+              <% if (l.status === 'draft') { %>
+                <span class="pill pill-draft">Draft</span>
+              <% } else { %>
+                <span class="pill pill-<%= l.status === 'hidden' ? 'hidden' : 'active' %>"><%= l.status === 'hidden' ? 'Hidden' : 'Active' %></span>
+              <% } %>
             </div>
           </td>
           <td class="actions-cell">
-            <a href="/provider/listings/<%= l.id %>/edit" class="btn btn-sm btn-ghost">Edit</a>
+            <% if (l.status === 'draft') { %>
+              <a href="/provider/listings/<%= l.id %>/setup/<%= continueStep[l.id] || 'rooms' %>" class="btn btn-sm btn-primary">Continue setup →</a>
+            <% } else { %>
+              <a href="/provider/listings/<%= l.id %>/edit" class="btn btn-sm btn-ghost">Edit</a>
+            <% } %>
             <form action="/provider/listings/<%= l.id %>/delete" method="POST" class="inline-form" onsubmit="return confirm('Delete this listing?')">
               <button class="btn btn-sm btn-danger">Delete</button>
             </form>
