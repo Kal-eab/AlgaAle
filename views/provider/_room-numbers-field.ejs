@@ -1,0 +1,16 @@
+<%
+  // Renders the "Room numbers" input plus a start→end range generator.
+  // Caller passes `value` (current comma-separated numbers, may be '').
+  var rnValue = typeof value !== 'undefined' ? value : '';
+%>
+<div class="field span-2 rn-field" style="grid-column:1 / -1;">
+  <label>Room numbers</label>
+  <div class="rn-gen">
+    <input type="text" class="rn-gen-start" placeholder="Start e.g. 101" />
+    <span class="rn-gen-arrow">→</span>
+    <input type="text" class="rn-gen-end" placeholder="End e.g. 118" />
+    <button type="button" class="btn btn-sm btn-ghost rn-gen-btn">+ Generate</button>
+  </div>
+  <input type="text" name="roomNumbers" class="rn-target" value="<%= rnValue %>" placeholder="e.g. 101, 102, 103" />
+  <span class="muted" style="font-size:.75rem;">One number per unit. Type them, or fill a range above and hit Generate. Guests get a specific number when confirmed.</span>
+</div>

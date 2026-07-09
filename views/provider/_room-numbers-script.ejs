@@ -1,0 +1,40 @@
+<%# Delegated JS for every .rn-field range generator on the page. Include once. %>
+<script>
+(function () {
+  // "101","118" -> ["101",...,"118"] ; preserves a non-digit prefix + zero-pad.
+  function genRange(start, end) {
+    var m1 = String(start).trim().match(/^(\D*)(\d+)$/);
+    var m2 = String(end).trim().match(/^(\D*)(\d+)$/);
+    if (!m1 || !m2) return [];
+    var prefix = m1[1];
+    var a = parseInt(m1[2], 10), b = parseInt(m2[2], 10);
+    if (isNaN(a) || isNaN(b) || b < a || (b - a) > 500) return [];
+    var pad = m1[2].length, out = [];
+    for (var i = a; i <= b; i++) {
+      var s = String(i);
+      while (s.length < pad) s = '0' + s;
+      out.push(prefix + s);
+    }
+    return out;
+  }
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest ? e.target.closest('.rn-gen-btn') : null;
+    if (!btn) return;
+    var field = btn.closest('.rn-field');
+    if (!field) return;
+    var start = field.querySelector('.rn-gen-start').value;
+    var end = field.querySelector('.rn-gen-end').value;
+    var target = field.querySelector('.rn-target');
+    var nums = genRange(start, end);
+    if (!nums.length) {
+      alert('Enter a valid start and end (e.g. 101 and 118). End must be ≥ start and within 500 rooms.');
+      return;
+    }
+    var existing = target.value.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+    nums.forEach(function (n) { if (existing.indexOf(n) === -1) existing.push(n); });
+    target.value = existing.join(', ');
+    field.querySelector('.rn-gen-start').value = '';
+    field.querySelector('.rn-gen-end').value = '';
+  });
+})();
+</script>

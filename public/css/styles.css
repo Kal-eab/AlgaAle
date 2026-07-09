@@ -773,6 +773,12 @@ img { max-width: 100%; display: block; }
 .rn-reassign { display: inline-flex; gap: 4px; align-items: center; margin-top: 4px; }
 .rn-reassign select { padding: 3px 6px; font-size: .8rem; border: 1px solid var(--line); border-radius: 6px; }
 
+/* Room-number range generator */
+.rn-gen { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.rn-gen input { width: 130px; }
+.rn-gen-arrow { color: var(--muted); font-weight: 700; }
+.rn-gen-btn { white-space: nowrap; }
+
 /* Occupancy board */
 .occ-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .occ-card { border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; background: #fff; }
@@ -786,3 +792,14 @@ img { max-width: 100%; display: block; }
 .occ-card.is-blocked .occ-status { color: var(--muted); }
 .occ-who { font-size: .82rem; color: var(--body); margin-top: 4px; }
 .occ-group { margin-bottom: 22px; }
+
+/* Rooms roster table */
+.rooms-table-wrap { overflow-x: auto; }
+.rooms-table td { vertical-align: middle; }
+.room-row.is-occupied { background: #fef2f2; }
+.room-row.is-blocked { background: #f1f5f9; }
+.room-status { font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .03em;
+  padding: 2px 9px; border-radius: 999px; }
+.room-status-occupied { background: #fee2e2; color: #991b1b; }
+.room-status-free { background: #dcfce7; color: #166534; }
+.room-status-blocked { background: #e2e8f0; color: var(--muted); }

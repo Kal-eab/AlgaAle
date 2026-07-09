@@ -1414,8 +1414,9 @@ app.post('/provider/reservations/:id/room-number', requireProvider, wrap(async (
   res.redirect(back);
 }));
 
-// Occupancy board — every physical room number and who's in it for a date.
-app.get('/provider/occupancy', requireProvider, wrap(async (req, res) => {
+// Rooms roster — every physical room grouped by type, with today's status and
+// occupant. Served at /provider/rooms (and legacy /provider/occupancy).
+async function roomsRoster(req, res) {
   const myListings = await providerListings(req);
   const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : todayIso();
   const nextDay = shiftIsoDay(date, 1);
@@ -1425,13 +1426,17 @@ app.get('/provider/occupancy', requireProvider, wrap(async (req, res) => {
     .filter((ab) => ab.startDate <= date && ab.endDate > date);
 
   const groups = [];
-  let totals = { occupied: 0, free: 0, blocked: 0, unassigned: 0 };
+  const totals = { occupied: 0, free: 0, blocked: 0, unassigned: 0, rooms: 0 };
   for (const l of myListings) {
     if (l.status === 'draft') continue;
     const rooms = await store.getRoomsByListing(l.id);
     const roomsOut = [];
+    const unnumbered = [];   // room types with no numbers yet (prompt to add)
     for (const room of rooms) {
-      if (!room.roomNumbers || !room.roomNumbers.length) continue; // numbered rooms only
+      if (!room.roomNumbers || !room.roomNumbers.length) {
+        unnumbered.push(room);
+        continue;
+      }
       const roomBookings = bookings.filter((b) =>
         b.roomId === room.id && b.checkinDate <= date && b.checkoutDate > date);
       const occByNumber = {};
@@ -1446,21 +1451,27 @@ app.get('/provider/occupancy', requireProvider, wrap(async (req, res) => {
         return { number: n, status: 'free', who: '' };
       });
       for (const u of units) { if (blockedUnits <= 0) break; if (u.status === 'free') { u.status = 'blocked'; blockedUnits--; } }
+      const counts = { occupied: 0, free: 0, blocked: 0 };
+      units.forEach((u) => { counts[u.status]++; totals[u.status]++; });
+      totals.rooms += units.length;
       const unassigned = roomBookings
         .filter((b) => !b.assignedRoomNumber)
         .reduce((s, b) => s + (b.numRooms || 1), 0);
-      units.forEach((u) => { totals[u.status]++; });
       totals.unassigned += unassigned;
-      roomsOut.push({ room, units, unassigned });
+      roomsOut.push({ room, units, counts, unassigned });
     }
-    if (roomsOut.length) groups.push({ listing: l, rooms: roomsOut });
+    if (roomsOut.length || unnumbered.length) {
+      groups.push({ listing: l, rooms: roomsOut, unnumbered });
+    }
   }
 
   res.render('provider/occupancy', {
     groups, totals, date, today: todayIso(),
     prev: shiftIsoDay(date, -1), next: shiftIsoDay(date, 1)
   });
-}));
+}
+app.get('/provider/rooms', requireProvider, wrap(roomsRoster));
+app.get('/provider/occupancy', requireProvider, wrap(roomsRoster));
 
 app.get('/provider/reservations/new', requireProvider, wrap(async (req, res) => {
   const myListings = await providerListings(req);
