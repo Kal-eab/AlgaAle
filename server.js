@@ -126,6 +126,40 @@ const idUpload = multer({
   limits: { fileSize: 6 * 1024 * 1024 },
   fileFilter: mimeFilter
 });
+
+// Payment screenshots. Cloudinary in production; without credentials (local dev)
+// they land on disk under /uploads so the payment flow still works end to end.
+const cloudinaryReady = !!(process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET);
+
+const proofStorage = cloudinaryReady
+  ? new CloudinaryStorage({
+      cloudinary: cloudinary,
+      params: async () => ({
+        folder: 'algaale/payments',
+        allowed_formats: ['jpg', 'jpeg', 'png', 'webp']
+      })
+    })
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(UPLOAD_DIR, 'payments');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) =>
+        cb(null, nanoid(12) + path.extname(file.originalname || '.png').toLowerCase())
+    });
+
+const proofUpload = multer({
+  storage: proofStorage,
+  limits: { fileSize: 6 * 1024 * 1024 },
+  fileFilter: mimeFilter
+});
+
+// Where the stored file is reachable from a browser.
+function proofUrl(file) {
+  return cloudinaryReady ? file.path : '/uploads/payments/' + file.filename;
+}
 const photoFields = C.PHOTO_CATEGORIES.map((c) => ({ name: `photo_${c}`, maxCount: 6 }));
 
 // ---------------------------------------------------------------------------
@@ -164,6 +198,14 @@ function requireAdmin(req, res, next) {
   if (u && (u.role === 'admin' || u.role === 'owner')) return next();
   req.flash('error', 'Please log in as admin to continue.');
   res.redirect('/admin/login');
+}
+
+// Support team verifies payment proofs and pays hosts out. Admin/owner inherit.
+function requireSupport(req, res, next) {
+  const u = req.session.user;
+  if (u && (u.role === 'support' || u.role === 'admin' || u.role === 'owner')) return next();
+  req.flash('error', 'Please log in as support to continue.');
+  res.redirect('/login?next=' + encodeURIComponent(req.originalUrl));
 }
 
 // ---------------------------------------------------------------------------
@@ -582,45 +624,62 @@ app.post('/listing/:id/pay', requireUser, wrap(async (req, res) => {
   const { subtotal, serviceFee, total } = computeTotals(nightly * qty, nights);
   const bookingId = nanoid(10);
 
-  // Overbooking-safe: locks the bucket and re-checks availability in one
-  // transaction. Confirmed bookings consume inventory immediately.
-  try {
-    await store.createBookingSafe({
-      id: bookingId,
-      listingId: listing.id,
-      listingTitle: listing.title,
-      name: leadName,
-      phone,
-      duration: qty + ' room' + (qty > 1 ? 's' : ''),
-      message: notes.join('\n'),
-      roomId: room ? room.id : null,
-      checkinDate: checkin,
-      checkoutDate: checkout,
-      guests,
-      numRooms: qty,
-      nightlyRate: nightly,
-      nights,
-      subtotal, serviceFee, total,
-      status: 'confirmed',
-      paymentStatus: 'pending',
-      chapaTxRef: 'algaale-' + bookingId,
-      createdAt: Date.now()
-    });
-  } catch (e) {
-    if (e.code === 'SOLD_OUT') {
-      req.flash('error', 'Those dates just sold out — someone booked while you were checking out. Try different dates or fewer rooms.');
-      return res.redirect('/listing/' + listing.id + '/reserve?checkin=' +
-        encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
-    }
-    throw e;
+  // The room is NOT held yet: an unpaid request consumes no inventory, and only
+  // support confirming the payment turns this into a live reservation. We still
+  // refuse dates that are already sold out, so nobody transfers money for a room
+  // that plainly isn't there.
+  const availableNow = await store.getAvailability({
+    listingId: listing.id, roomId: room ? room.id : null,
+    checkin, checkout
+  });
+  if (availableNow < qty) {
+    req.flash('error', availableNow > 0
+      ? 'Only ' + availableNow + ' room(s) left for those dates. Please reduce the number of rooms.'
+      : 'Sorry — this place is fully booked for those dates. Try different dates.');
+    return res.redirect('/listing/' + listing.id + '/reserve?checkin=' +
+      encodeURIComponent(checkin) + '&checkout=' + encodeURIComponent(checkout) + '&guests=' + guests);
   }
-  // Confirmed on creation → give the guest a specific room number right away.
-  await store.assignRoomNumbers(bookingId);
-  onBookingCreated(await store.getBookingById(bookingId), listing);
 
-  // PHASE 3: no real charge yet. Phase 4 will replace this redirect with a
-  // Chapa initialize() call + redirect to the Chapa checkout URL.
-  res.redirect('/booking/' + bookingId + '/success');
+  await store.createBooking({
+    id: bookingId,
+    userId: u.id,
+    listingId: listing.id,
+    listingTitle: listing.title,
+    name: leadName,
+    phone,
+    duration: qty + ' room' + (qty > 1 ? 's' : ''),
+    message: notes.join('\n'),
+    roomId: room ? room.id : null,
+    checkinDate: checkin,
+    checkoutDate: checkout,
+    guests,
+    numRooms: qty,
+    nightlyRate: nightly,
+    nights,
+    subtotal, serviceFee, total,
+    status: 'pending',
+    paymentStatus: 'awaiting_payment',
+    chapaTxRef: null,
+    createdAt: Date.now()
+  });
+
+  // The money side of the reservation: what the guest owes, what we keep, and
+  // what the host will be paid once the guest checks in.
+  const split = C.paymentSplit(total);
+  await store.createPayment({
+    id: nanoid(10),
+    bookingId,
+    userId: u.id,
+    listingId: listing.id,
+    paymentAmount: split.total,
+    commissionAmount: split.commission,
+    hotelPayoutAmount: split.payout,
+    status: 'awaiting_payment',
+    createdAt: Date.now()
+  });
+
+  onBookingCreated(await store.getBookingById(bookingId), listing);
+  res.redirect('/booking/' + bookingId + '/payment');
 }));
 
 app.get('/booking/:id/success', requireUser, wrap(async (req, res) => {
@@ -628,6 +687,80 @@ app.get('/booking/:id/success', requireUser, wrap(async (req, res) => {
   if (!booking) { req.flash('error', 'Booking not found.'); return res.redirect('/'); }
   const listing = await store.getListingById(booking.listingId);
   res.render('booking-success', { booking, listing });
+}));
+
+// ===========================================================================
+// GUEST PAYMENT — bank transfer + screenshot proof
+// ===========================================================================
+// A booking the logged-in guest owns (staff may open any, to help over the phone).
+async function loadOwnBooking(req, res) {
+  const booking = await store.getBookingById(req.params.id);
+  const u = req.session.user;
+  const isStaff = ['admin', 'owner', 'support'].includes(u.role);
+  if (!booking || (booking.userId !== u.id && !isStaff)) {
+    req.flash('error', 'Booking not found.');
+    res.redirect('/');
+    return null;
+  }
+  return booking;
+}
+
+app.get('/booking/:id/payment', requireUser, wrap(async (req, res) => {
+  const booking = await loadOwnBooking(req, res);
+  if (!booking) return;
+  const payment = await store.getPaymentByBooking(booking.id);
+  if (!payment) {
+    req.flash('error', 'This booking has no payment attached.');
+    return res.redirect('/');
+  }
+  const [listing, bankAccount] = await Promise.all([
+    store.getListingById(booking.listingId),
+    store.getActiveBankAccount()
+  ]);
+  res.render('payment', {
+    booking, payment, listing, bankAccount,
+    firstPhoto: listingFirstPhoto
+  });
+}));
+
+app.post('/booking/:id/payment/screenshot', requireUser, proofUpload.single('screenshot'),
+  wrap(async (req, res) => {
+    const booking = await loadOwnBooking(req, res);
+    if (!booking) return;
+    const payment = await store.getPaymentByBooking(booking.id);
+    const back = '/booking/' + booking.id + '/payment';
+    if (!payment) {
+      req.flash('error', 'This booking has no payment attached.');
+      return res.redirect('/');
+    }
+    // Once support has verified the money, the proof is settled — don't let a
+    // later upload quietly reopen a confirmed reservation.
+    if (C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status)) {
+      req.flash('error', 'This payment has already been confirmed.');
+      return res.redirect(back);
+    }
+    if (!req.file) {
+      req.flash('error', 'Please attach a screenshot of your payment receipt.');
+      return res.redirect(back);
+    }
+    await store.updatePayment(payment.id, {
+      screenshotUrl: proofUrl(req.file),
+      screenshotUploadedAt: Date.now(),
+      paymentNote: (req.body.note || '').trim(),
+      status: 'pending',
+      rejectionReason: ''
+    });
+    await store.updateBookingPayment(booking.id, 'pending');
+    console.log('[payment] proof submitted for booking ' + booking.id);
+    req.flash('success', 'Payment proof received. Our support team will confirm it shortly.');
+    res.redirect(back);
+  }));
+
+// Guest's own reservations, with the payment status of each.
+app.get('/my/bookings', requireUser, wrap(async (req, res) => {
+  const bookings = await store.getBookingsByUser(req.session.user.id);
+  const payments = await store.getPaymentsByBookings(bookings.map((b) => b.id));
+  res.render('my-bookings', { bookings, payments });
 }));
 
 app.post('/listing/:id/review', requireUser, wrap(async (req, res) => {
@@ -800,6 +933,18 @@ async function providerListings(req) {
   if (u.role === 'admin' || u.role === 'owner') return store.getListings();
   return store.getListingsByOwner(u.id);
 }
+// A host only ever sees a reservation once support has verified the guest's
+// payment. Walk-ins and legacy enquiries carry no payment row, so they stay
+// visible exactly as before. (Unverified bookings are 'pending' and consume no
+// inventory, so the calendar and room roster already exclude them.)
+async function hostVisible(bookings) {
+  const payments = await store.getPaymentsByBookings(bookings.map((b) => b.id));
+  return bookings.filter((b) => {
+    const p = payments[b.id];
+    return !p || C.PAYMENT_CONFIRMED_STATUSES.includes(p.status);
+  });
+}
+
 function todayIso() { return new Date().toISOString().slice(0, 10); }
 function addDaysIso(iso, n) {
   const d = new Date(iso + 'T00:00:00');
@@ -820,7 +965,9 @@ app.get('/provider', requireProvider, wrap(async (req, res) => {
   const ids = myListings.map((l) => l.id);
   const today = todayIso();
 
-  const all = (await store.getBookings()).filter((b) => ids.includes(b.listingId));
+  const all = await hostVisible(
+    (await store.getBookings()).filter((b) => ids.includes(b.listingId))
+  );
   const active = all.filter((b) => store.ACTIVE_STATUSES.includes(b.status));
   const arrivals = active.filter((b) => b.checkinDate === today && b.status !== 'checked_in');
   const inHouse = active.filter((b) => b.checkinDate && b.checkinDate <= today && b.checkoutDate > today);
@@ -1314,7 +1461,9 @@ app.get('/provider/reservations', requireProvider, wrap(async (req, res) => {
   const tab = req.query.tab || 'all';
   const q = (req.query.q || '').trim().toLowerCase();
 
-  let list = (await store.getBookings()).filter((b) => ids.includes(b.listingId));
+  let list = await hostVisible(
+    (await store.getBookings()).filter((b) => ids.includes(b.listingId))
+  );
   const isActive = (b) => store.ACTIVE_STATUSES.includes(b.status);
   if (tab === 'arrivals')   list = list.filter((b) => isActive(b) && b.checkinDate === today && b.status !== 'checked_in');
   if (tab === 'inhouse')    list = list.filter((b) => b.status === 'checked_in');
@@ -1343,7 +1492,8 @@ app.get('/provider/reservations', requireProvider, wrap(async (req, res) => {
     }
   }
 
-  res.render('provider/reservations', { list, tab, q, today, roomName, assignOptions });
+  const payments = await store.getPaymentsByBookings(list.map((b) => b.id));
+  res.render('provider/reservations', { list, tab, q, today, roomName, assignOptions, payments });
 }));
 
 app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, res) => {
@@ -1360,6 +1510,15 @@ app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, 
     req.flash('error', `Cannot change a ${booking.status} reservation to ${next}.`);
     return res.redirect(back);
   }
+  const payment = await store.getPaymentByBooking(booking.id);
+
+  // A booking paid for by bank transfer only becomes real when support has seen
+  // the money. The host cannot short-circuit that.
+  if (next === 'confirmed' && payment && !C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status)) {
+    req.flash('error', 'Support has not confirmed this guest\'s payment yet.');
+    return res.redirect(back);
+  }
+
   // Confirming starts consuming inventory — make sure the units still exist
   if (next === 'confirmed') {
     const available = await store.getAvailability({
@@ -1372,6 +1531,13 @@ app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, 
     }
   }
   await store.updateBookingStatus(booking.id, next);
+
+  // Checking the guest in is what earns the host their payout — it puts the
+  // reservation on support's "send payment to hosts" queue.
+  if (next === 'checked_in' && payment && !payment.arrivedAt) {
+    await store.updatePayment(payment.id, { arrivedAt: Date.now() });
+  }
+
   // Entering an active state assigns a specific room number (if the room type
   // has numbers defined and one isn't already assigned).
   let assignedNote = '';
@@ -1381,6 +1547,23 @@ app.post('/provider/reservations/:id/status', requireProvider, wrap(async (req, 
   }
   req.flash('success', 'Reservation ' + next.replace('_', ' ') + '.' + assignedNote);
   res.redirect(back);
+}));
+
+// Where support should send this host's money.
+app.get('/provider/payout', requireProvider, wrap(async (req, res) => {
+  const me = await store.findUserById(req.session.user.id);
+  res.render('provider/payout', { payout: me ? me.payout : null });
+}));
+
+app.post('/provider/payout', requireProvider, wrap(async (req, res) => {
+  const b = req.body;
+  await store.updateUserPayout(req.session.user.id, {
+    bankName: (b.bankName || '').trim(),
+    accountNumber: (b.accountNumber || '').trim(),
+    accountName: (b.accountName || '').trim()
+  });
+  req.flash('success', 'Payout details saved.');
+  res.redirect('/provider/payout');
 }));
 
 // Manually assign / reassign a specific room number to a reservation.
@@ -1761,6 +1944,220 @@ app.get('/admin/bookings', requireAdmin, wrap(async (req, res) => {
 app.post('/admin/bookings/:id/status', requireAdmin, wrap(async (req, res) => {
   await store.updateBookingStatus(req.params.id, req.body.status);
   res.redirect('/admin/bookings');
+}));
+
+// ===========================================================================
+// SUPPORT DASHBOARD — verify payments, pay hosts out
+// ===========================================================================
+// Everything a support agent needs on one card: who paid, for what, and where
+// the host's money should go.
+async function enrichPayments(payments) {
+  const out = [];
+  for (const payment of payments) {
+    const booking = await store.getBookingById(payment.bookingId);
+    if (!booking) continue;                       // booking deleted with its listing
+    const listing = await store.getListingById(payment.listingId || booking.listingId);
+    const host = listing && listing.ownerId ? await store.findUserById(listing.ownerId) : null;
+    const room = booking.roomId ? await store.getRoomById(booking.roomId) : null;
+    out.push({ payment, booking, listing, host, room });
+  }
+  return out;
+}
+
+app.get('/support', requireSupport, wrap(async (req, res) => {
+  const tab = ['pending', 'payouts', 'history'].includes(req.query.tab) ? req.query.tab : 'pending';
+
+  // Proofs waiting on a human: newly submitted first, then ones we bounced back.
+  const pending = await store.getPaymentsByStatus(['pending']);
+  // Guest has checked in, so the host has earned their payout.
+  const confirmed = await store.getPaymentsByStatus(['confirmed_by_support']);
+  const payouts = confirmed.filter((p) => p.arrivedAt);
+  const all = await store.getPayments();
+
+  const q = (req.query.q || '').trim().toLowerCase();
+  let rows;
+  if (tab === 'pending') rows = await enrichPayments(pending);
+  else if (tab === 'payouts') rows = await enrichPayments(payouts);
+  else {
+    rows = await enrichPayments(all);
+    if (q) {
+      rows = rows.filter((r) =>
+        (r.booking.name || '').toLowerCase().includes(q) ||
+        (r.booking.phone || '').includes(q) ||
+        (r.booking.id || '').toLowerCase().includes(q) ||
+        (r.booking.listingTitle || '').toLowerCase().includes(q));
+    }
+  }
+
+  const bankAccount = await store.getActiveBankAccount();
+  res.render('support/dashboard', {
+    tab, rows, q,
+    counts: { pending: pending.length, payouts: payouts.length, history: all.length },
+    revenue: {
+      commission: all
+        .filter((p) => C.PAYMENT_CONFIRMED_STATUSES.includes(p.status))
+        .reduce((s, p) => s + p.commissionAmount, 0),
+      owed: payouts.filter((p) => p.status === 'confirmed_by_support')
+        .reduce((s, p) => s + p.hotelPayoutAmount, 0)
+    },
+    bankAccount
+  });
+}));
+
+// Load a payment for a support action, or redirect and return null.
+async function loadPayment(req, res, back) {
+  const payment = await store.getPaymentById(req.params.id);
+  if (!payment) {
+    req.flash('error', 'Payment not found.');
+    res.redirect(back);
+    return null;
+  }
+  return payment;
+}
+
+// Verify the money landed → the reservation goes live and the room is held.
+app.post('/support/payments/:id/confirm', requireSupport, wrap(async (req, res) => {
+  const back = '/support?tab=pending';
+  const payment = await loadPayment(req, res, back);
+  if (!payment) return;
+  if (payment.status !== 'pending') {
+    req.flash('error', 'That payment is not awaiting confirmation.');
+    return res.redirect(back);
+  }
+  const booking = await store.getBookingById(payment.bookingId);
+  if (!booking) {
+    req.flash('error', 'The reservation behind this payment no longer exists.');
+    return res.redirect(back);
+  }
+
+  // This is the first moment the room is actually held, so it can genuinely be
+  // gone — someone else may have paid and been confirmed first.
+  try {
+    await store.confirmBookingSafe(booking.id);
+  } catch (e) {
+    if (e.code === 'SOLD_OUT') {
+      req.flash('error', 'Those dates sold out before this payment was confirmed. ' +
+        'Reject the payment and refund the guest, or move them to different dates.');
+      return res.redirect(back);
+    }
+    throw e;
+  }
+
+  await store.updateBookingPayment(booking.id, 'paid');
+  const assigned = await store.assignRoomNumbers(booking.id);
+  await store.updatePayment(payment.id, {
+    status: 'confirmed_by_support',
+    confirmedAt: Date.now(),
+    confirmedByUserId: req.session.user.id,
+    supportNotes: (req.body.notes || '').trim(),
+    rejectionReason: ''
+  });
+  console.log('[payment] ' + payment.id + ' confirmed — booking ' + booking.id + ' is live');
+  req.flash('success', 'Payment confirmed. The reservation is now live in the host\'s dashboard.' +
+    (assigned ? ' Room ' + assigned + ' assigned.' : ''));
+  res.redirect(back);
+}));
+
+// Bad proof → tell the guest why; they can upload a corrected screenshot.
+app.post('/support/payments/:id/reject', requireSupport, wrap(async (req, res) => {
+  const back = '/support?tab=pending';
+  const payment = await loadPayment(req, res, back);
+  if (!payment) return;
+  if (C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status)) {
+    req.flash('error', 'That payment is already confirmed — it cannot be rejected.');
+    return res.redirect(back);
+  }
+  const reason = (req.body.reason || '').trim();
+  if (!reason) {
+    req.flash('error', 'Please give the guest a reason so they can fix it.');
+    return res.redirect(back);
+  }
+  await store.updatePayment(payment.id, {
+    status: 'rejected',
+    rejectionReason: reason,
+    supportNotes: (req.body.notes || '').trim()
+  });
+  await store.updateBookingPayment(payment.bookingId, 'rejected');
+  req.flash('success', 'Payment rejected. The guest can upload a new screenshot.');
+  res.redirect(back);
+}));
+
+// Money has been transferred to the host.
+app.post('/support/payments/:id/send-to-hotel', requireSupport, wrap(async (req, res) => {
+  const back = '/support?tab=payouts';
+  const payment = await loadPayment(req, res, back);
+  if (!payment) return;
+  if (payment.status !== 'confirmed_by_support') {
+    req.flash('error', 'That payment is not ready for a host payout.');
+    return res.redirect(back);
+  }
+  if (!payment.arrivedAt) {
+    req.flash('error', 'The host has not marked this guest as arrived yet.');
+    return res.redirect(back);
+  }
+  await store.updatePayment(payment.id, {
+    status: 'payment_sent_to_hotel',
+    paidToHotelAt: Date.now(),
+    paymentMethod: req.body.method || 'bank_transfer',
+    paymentReference: (req.body.reference || '').trim(),
+    supportNotes: (req.body.notes || '').trim()
+  });
+  console.log('[payment] ' + payment.id + ' paid out to host');
+  req.flash('success', 'Host payout recorded.');
+  res.redirect(back);
+}));
+
+app.post('/support/payments/:id/complete', requireSupport, wrap(async (req, res) => {
+  const back = '/support?tab=history';
+  const payment = await loadPayment(req, res, back);
+  if (!payment) return;
+  if (payment.status !== 'payment_sent_to_hotel') {
+    req.flash('error', 'Only a paid-out reservation can be completed.');
+    return res.redirect(back);
+  }
+  await store.updatePayment(payment.id, { status: 'completed', completedAt: Date.now() });
+  req.flash('success', 'Reservation completed.');
+  res.redirect(back);
+}));
+
+// --- The account guests transfer into ---
+app.get('/support/bank-account', requireSupport, wrap(async (req, res) => {
+  res.render('support/bank-account', { accounts: await store.getBankAccounts() });
+}));
+
+app.post('/support/bank-account', requireSupport, wrap(async (req, res) => {
+  const b = req.body;
+  if (!b.bankName || !b.accountHolderName || !b.accountNumber) {
+    req.flash('error', 'Bank name, account holder and account number are required.');
+    return res.redirect('/support/bank-account');
+  }
+  const id = nanoid(10);
+  await store.createBankAccount({
+    id,
+    bankName: b.bankName.trim(),
+    accountHolderName: b.accountHolderName.trim(),
+    accountNumber: b.accountNumber.trim(),
+    branch: (b.branch || '').trim(),
+    instructions: (b.instructions || '').trim(),
+    isActive: false,
+    createdAt: Date.now()
+  });
+  // A brand-new account is what you want guests to use, so make it the live one.
+  await store.activateBankAccount(id);
+  req.flash('success', 'Bank account added and set as the active one.');
+  res.redirect('/support/bank-account');
+}));
+
+app.post('/support/bank-account/:id/activate', requireSupport, wrap(async (req, res) => {
+  await store.activateBankAccount(req.params.id);
+  req.flash('success', 'That account is now shown to guests.');
+  res.redirect('/support/bank-account');
+}));
+
+app.post('/support/bank-account/:id/delete', requireSupport, wrap(async (req, res) => {
+  await store.deleteBankAccount(req.params.id);
+  req.flash('success', 'Bank account removed.');
+  res.redirect('/support/bank-account');
 }));
 
 // ---------------------------------------------------------------------------

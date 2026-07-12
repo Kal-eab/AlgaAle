@@ -1,0 +1,55 @@
+<%- include('../partials/header', { title: 'Payout details — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Payout details</h1>
+      <p class="muted" style="margin:4px 0 0;">Where AlgaAle sends your money after a guest checks in.</p>
+    </div>
+  </div>
+
+  <div class="admin-nav">
+    <a href="/provider" class="btn btn-ghost">Overview</a>
+    <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
+    <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
+    <a href="/provider/rooms" class="btn btn-ghost">Rooms</a>
+    <a href="/provider/payout" class="btn btn-ghost">Payout</a>
+  </div>
+
+  <div class="pay-layout">
+    <section class="panel book-card">
+      <h3>Your bank account</h3>
+      <p class="muted">
+        Guests pay AlgaAle when they book. Once you check a guest in, our support team
+        transfers you <strong><%= 100 - C.COMMISSION_PERCENT %>%</strong> of what they paid —
+        we keep <%= C.COMMISSION_PERCENT %>% as commission.
+      </p>
+      <form action="/provider/payout" method="POST">
+        <label class="field"><span>Bank name</span>
+          <input type="text" name="bankName" value="<%= payout ? payout.bankName : '' %>" placeholder="Commercial Bank of Ethiopia" />
+        </label>
+        <label class="field"><span>Account holder name</span>
+          <input type="text" name="accountName" value="<%= payout ? payout.accountName : '' %>" placeholder="Name as it appears on the account" />
+        </label>
+        <label class="field"><span>Account number</span>
+          <input type="text" name="accountNumber" value="<%= payout ? payout.accountNumber : '' %>" placeholder="1000123456789" />
+        </label>
+        <button class="btn btn-primary">Save payout details</button>
+      </form>
+    </section>
+
+    <aside class="pay-side">
+      <section class="panel book-card">
+        <h3>How you get paid</h3>
+        <ol class="pay-timeline">
+          <li class="is-done"><span class="pay-tl-dot">1</span><span>Guest books and pays AlgaAle</span></li>
+          <li class="is-done"><span class="pay-tl-dot">2</span><span>Support confirms the payment — the booking appears in your dashboard</span></li>
+          <li class="is-done"><span class="pay-tl-dot">3</span><span>You check the guest in when they arrive</span></li>
+          <li class="is-done"><span class="pay-tl-dot">4</span><span>Support transfers your payout to this account</span></li>
+        </ol>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

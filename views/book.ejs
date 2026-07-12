@@ -101,15 +101,17 @@
         <span><span data-qty-label>1 room</span> × <%= nights %> night<%= nights > 1 ? 's' : '' %> × <span data-rate-label><%= money(Math.round(nightly)) %></span> birr</span>
         <span data-subtotal><%= money(subtotal) %> birr</span>
       </div>
-      <div class="book-price-row">
-        <span>AlgaAle service fee (<%= serviceFeePercent %>%)</span>
-        <span data-fee-amt><%= money(serviceFee) %> birr</span>
-      </div>
+      <% if (serviceFeePercent > 0) { %>
+        <div class="book-price-row">
+          <span>AlgaAle service fee (<%= serviceFeePercent %>%)</span>
+          <span data-fee-amt><%= money(serviceFee) %> birr</span>
+        </div>
+      <% } %>
       <div class="book-price-total">
         <span>Total</span>
         <span data-total><%= money(total) %> birr</span>
       </div>
-      <div class="book-savings">✓ Incl. all fees — no surprises at check-in</div>
+      <div class="book-savings">✓ No booking fees — you pay exactly this</div>
     </section>
 
     <!-- Who's staying -->
@@ -208,7 +210,8 @@
     q('[data-qty-label]').textContent = qty + ' room' + (qty > 1 ? 's' : '');
     q('[data-rate-label]').textContent = money(nightly);
     q('[data-subtotal]').textContent = money(subtotal) + ' birr';
-    q('[data-fee-amt]').textContent = money(fee) + ' birr';
+    var feeEl = q('[data-fee-amt]');            // absent when there is no fee
+    if (feeEl) feeEl.textContent = money(fee) + ' birr';
     q('[data-total]').textContent = money(total) + ' birr';
     q('[data-total-btn]').textContent = money(total);
 

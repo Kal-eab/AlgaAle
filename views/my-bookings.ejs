@@ -1,0 +1,54 @@
+<%- include('partials/header', { title: 'My bookings — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>My bookings</h1>
+      <p class="muted" style="margin:4px 0 0;">Track your payments and reservations.</p>
+    </div>
+    <a href="/search" class="btn btn-primary">Find a place</a>
+  </div>
+
+  <% if (!bookings.length) { %>
+    <div class="empty"><p>You haven't booked anything yet.</p></div>
+  <% } else { %>
+    <table class="table">
+      <thead>
+        <tr><th>Place</th><th>Dates</th><th>Rooms</th><th>Room #</th><th>Total</th><th>Payment</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% bookings.forEach(function(b){ var p = payments[b.id]; %>
+          <tr>
+            <td><strong><%= b.listingTitle %></strong><br><span class="muted"><%= b.id %></span></td>
+            <td><%= b.checkinDate || '—' %><% if (b.checkoutDate) { %> → <%= b.checkoutDate %><% } %></td>
+            <td><%= b.numRooms || 1 %></td>
+            <td>
+              <% if (b.assignedRoomNumber) { %>
+                <span class="rn-pill"><%= b.assignedRoomNumber %></span>
+              <% } else { %>
+                <span class="muted">—</span>
+              <% } %>
+            </td>
+            <td><%= b.total != null ? money(b.total) + ' birr' : '—' %></td>
+            <td>
+              <% if (p) { %>
+                <span class="pill pay-pill pay-pill-<%= p.status %>"><%= C.paymentLabel(p.status) %></span>
+              <% } else { %>
+                <span class="pill pill-<%= b.status %>"><%= b.status.replace('_',' ') %></span>
+              <% } %>
+            </td>
+            <td>
+              <% if (p) { %>
+                <a href="/booking/<%= b.id %>/payment" class="btn btn-sm btn-ghost">
+                  <%= p.status === 'awaiting_payment' || p.status === 'rejected' ? 'Pay now' : 'View' %>
+                </a>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%- include('partials/footer') %>

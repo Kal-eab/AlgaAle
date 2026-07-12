@@ -1,0 +1,173 @@
+<%- include('partials/header', { title: 'Pay for your booking — AlgaAle' }) %>
+
+<%
+  var steps = [
+    { key: 'booked',    label: 'Booking created',            done: true },
+    { key: 'proof',     label: 'Payment screenshot sent',    done: !!payment.screenshotUrl },
+    { key: 'confirmed', label: 'Support confirmed payment',  done: C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status) },
+    { key: 'arrived',   label: 'Checked in at the property', done: !!payment.arrivedAt },
+    { key: 'done',      label: 'Completed',                  done: payment.status === 'completed' }
+  ];
+  var photo = listing ? firstPhoto(listing) : null;
+%>
+
+<div class="container book-page">
+  <div class="admin-head">
+    <div>
+      <h1>Complete your payment</h1>
+      <p class="muted" style="margin:4px 0 0;">
+        Transfer the total to the account below, then upload a screenshot of the receipt.
+      </p>
+    </div>
+    <a href="/my/bookings" class="btn btn-ghost">My bookings</a>
+  </div>
+
+  <div class="pay-layout">
+    <div>
+      <!-- What is being paid for -->
+      <section class="panel book-card">
+        <div class="book-prop">
+          <img class="book-prop-img" src="<%= photo || ('/placeholder.svg?text=' + encodeURIComponent(booking.listingTitle)) %>" alt="" />
+          <div>
+            <div class="book-prop-title"><%= booking.listingTitle %></div>
+            <div class="book-dates-line">
+              <%= booking.checkinDate %> → <%= booking.checkoutDate %>
+              · <%= booking.nights %> night<%= booking.nights > 1 ? 's' : '' %>
+              · <%= booking.numRooms || 1 %> room<%= (booking.numRooms || 1) > 1 ? 's' : '' %>
+            </div>
+            <div class="muted" style="font-size:.85rem;">Booking reference <%= booking.id %></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Status -->
+      <section class="panel book-card">
+        <h3>Status</h3>
+        <div class="pay-status pay-status-<%= payment.status %>">
+          <strong><%= C.paymentLabel(payment.status) %></strong>
+          <p class="muted" style="margin:.35rem 0 0;">
+            <% if (payment.status === 'awaiting_payment') { %>
+              Send the money, then upload your screenshot below. Your room is not held until we confirm your payment.
+            <% } else if (payment.status === 'pending') { %>
+              We have your screenshot. Our support team is checking it — you'll see this page update once it's confirmed.
+            <% } else if (payment.status === 'rejected') { %>
+              Our team could not verify your payment. Please upload a clearer screenshot.
+            <% } else if (payment.status === 'confirmed_by_support') { %>
+              Your payment is confirmed and the property has your reservation. Just turn up on <%= booking.checkinDate %>.
+            <% } else { %>
+              Your stay is complete. Thank you for using AlgaAle.
+            <% } %>
+          </p>
+          <% if (payment.status === 'rejected' && payment.rejectionReason) { %>
+            <p class="pay-reject-reason">Reason: <%= payment.rejectionReason %></p>
+          <% } %>
+          <% if (booking.assignedRoomNumber && C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status)) { %>
+            <div class="room-number-callout" style="margin-top:.75rem;">
+              <span class="rn-label">Your room number is</span>
+              <span class="rn-value"><%= booking.assignedRoomNumber %></span>
+            </div>
+          <% } %>
+        </div>
+
+        <ol class="pay-timeline">
+          <% steps.forEach(function(s){ %>
+            <li class="<%= s.done ? 'is-done' : '' %>">
+              <span class="pay-tl-dot"><%= s.done ? '✓' : '' %></span>
+              <span><%= s.label %></span>
+            </li>
+          <% }) %>
+        </ol>
+      </section>
+
+      <!-- Upload proof -->
+      <% if (!C.PAYMENT_CONFIRMED_STATUSES.includes(payment.status)) { %>
+        <section class="panel book-card">
+          <h3><%= payment.screenshotUrl ? 'Replace your payment screenshot' : 'Upload your payment screenshot' %></h3>
+          <% if (payment.screenshotUrl) { %>
+            <div class="pay-proof">
+              <img src="<%= payment.screenshotUrl %>" alt="Your payment screenshot" />
+              <p class="muted" style="font-size:.82rem;">Sent <%= new Date(payment.screenshotUploadedAt).toLocaleString() %></p>
+            </div>
+          <% } %>
+          <form action="/booking/<%= booking.id %>/payment/screenshot" method="POST" enctype="multipart/form-data">
+            <label class="field">
+              <span>Screenshot of your transfer receipt *</span>
+              <input type="file" name="screenshot" accept="image/*" required />
+            </label>
+            <label class="field">
+              <span>Note for support (optional)</span>
+              <input type="text" name="note" maxlength="200"
+                     value="<%= payment.paymentNote || '' %>"
+                     placeholder="e.g. Sent from my CBE account on <%= booking.checkinDate %>" />
+            </label>
+            <button type="submit" class="btn btn-primary btn-block">
+              <%= payment.screenshotUrl ? 'Send new screenshot' : 'Submit payment proof' %>
+            </button>
+          </form>
+        </section>
+      <% } %>
+    </div>
+
+    <!-- Where to send the money -->
+    <aside class="pay-side">
+      <section class="panel book-card">
+        <h3>Amount to pay</h3>
+        <div class="book-price-row">
+          <span><%= booking.numRooms || 1 %> room<%= (booking.numRooms || 1) > 1 ? 's' : '' %> × <%= booking.nights %> night<%= booking.nights > 1 ? 's' : '' %></span>
+          <span><%= money(booking.subtotal) %> birr</span>
+        </div>
+        <div class="book-price-total">
+          <span>Total</span>
+          <span><%= money(payment.paymentAmount) %> birr</span>
+        </div>
+        <div class="book-savings">✓ No booking fees — this is the full price</div>
+      </section>
+
+      <section class="panel book-card">
+        <h3>Send the money to</h3>
+        <% if (!bankAccount) { %>
+          <p class="muted">
+            Payments are not set up yet. Please contact AlgaAle support before transferring any money.
+          </p>
+        <% } else { %>
+          <dl class="bank-details">
+            <dt>Bank</dt>
+            <dd><%= bankAccount.bankName %></dd>
+            <dt>Account name</dt>
+            <dd><%= bankAccount.accountHolderName %></dd>
+            <dt>Account number</dt>
+            <dd>
+              <span class="bank-acct" id="acctNumber"><%= bankAccount.accountNumber %></span>
+              <button type="button" class="btn btn-sm btn-ghost" data-copy="#acctNumber">Copy</button>
+            </dd>
+            <% if (bankAccount.branch) { %>
+              <dt>Branch</dt>
+              <dd><%= bankAccount.branch %></dd>
+            <% } %>
+          </dl>
+          <p class="pay-exact">Send exactly <strong><%= money(payment.paymentAmount) %> birr</strong></p>
+          <% if (bankAccount.instructions) { %>
+            <p class="muted" style="font-size:.85rem;"><%= bankAccount.instructions %></p>
+          <% } %>
+        <% } %>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<script>
+  // Copy the account number so nobody mistypes it into their banking app.
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.querySelector(btn.getAttribute('data-copy'));
+      if (!el) return;
+      navigator.clipboard.writeText(el.textContent.trim()).then(function () {
+        var was = btn.textContent;
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = was; }, 1500);
+      });
+    });
+  });
+</script>
+
+<%- include('partials/footer') %>

@@ -803,3 +803,66 @@ img { max-width: 100%; display: block; }
 .room-status-occupied { background: #fee2e2; color: #991b1b; }
 .room-status-free { background: #dcfce7; color: #166534; }
 .room-status-blocked { background: #e2e8f0; color: var(--muted); }
+
+/* ===================================================================
+   Payments — guest payment page, support dashboard, payout details
+   =================================================================== */
+.pay-layout { display: grid; grid-template-columns: 1fr 340px; gap: 20px; align-items: start; }
+.pay-side { position: sticky; top: 90px; }
+@media (max-width: 860px) {
+  .pay-layout { grid-template-columns: 1fr; }
+  .pay-side { position: static; }
+}
+
+/* Guest-facing status banner */
+.pay-status { border: 1px solid var(--line); border-left-width: 4px; border-radius: 10px; padding: 12px 14px; }
+.pay-status-awaiting_payment { border-left-color: #f97316; background: #fff7ed; }
+.pay-status-pending { border-left-color: #0ea5e9; background: #f0f9ff; }
+.pay-status-rejected { border-left-color: #ef4444; background: #fef2f2; }
+.pay-status-confirmed_by_support,
+.pay-status-payment_sent_to_hotel,
+.pay-status-completed { border-left-color: #10b981; background: #ecfdf5; }
+.pay-reject-reason { margin: .5rem 0 0; font-size: .88rem; color: #991b1b; }
+
+/* Step timeline */
+.pay-timeline { list-style: none; margin: 1rem 0 0; padding: 0; }
+.pay-timeline li { display: flex; align-items: center; gap: 10px; padding: 6px 0; color: var(--muted); font-size: .9rem; }
+.pay-timeline li.is-done { color: var(--body); font-weight: 600; }
+.pay-tl-dot { display: inline-flex; align-items: center; justify-content: center; flex: none;
+  width: 20px; height: 20px; border-radius: 999px; border: 1px solid var(--line);
+  background: #fff; font-size: .7rem; font-weight: 800; color: transparent; }
+.pay-timeline li.is-done .pay-tl-dot { background: #10b981; border-color: #10b981; color: #fff; }
+
+/* Bank account read-out */
+.bank-details { display: grid; grid-template-columns: 130px 1fr; gap: 6px 12px; margin: 0 0 .75rem; font-size: .9rem; }
+.bank-details dt { color: var(--muted); }
+.bank-details dd { margin: 0; font-weight: 600; }
+.bank-acct { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: .04em; }
+.pay-exact { margin: .25rem 0 .5rem; padding: 8px 10px; border-radius: 8px;
+  background: #f0fdf4; color: #166534; font-size: .9rem; }
+
+/* Screenshot proof */
+.pay-proof img { max-width: 100%; border: 1px solid var(--line); border-radius: 10px; display: block; }
+
+/* Support cards */
+.pay-cards { display: grid; gap: 16px; }
+.pay-card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 12px; }
+.pay-card-head h3 { margin: 0; }
+.pay-card-amount { font-size: 1.25rem; font-weight: 800; white-space: nowrap; }
+.pay-card-grid { display: grid; grid-template-columns: 1fr 260px; gap: 18px; }
+@media (max-width: 720px) { .pay-card-grid { grid-template-columns: 1fr; } }
+.pay-card-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 14px;
+  padding-top: 14px; border-top: 1px solid var(--line); }
+.pay-action-form { display: flex; gap: 8px; align-items: center; flex: 1 1 280px; }
+.pay-action-form input { flex: 1; }
+.pay-payout-form { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 12px; align-items: end;
+  margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
+@media (max-width: 720px) { .pay-payout-form { grid-template-columns: 1fr; } }
+
+/* Payment status pills */
+.pay-pill-awaiting_payment { background: #fff7ed; color: #9a3412; }
+.pay-pill-pending { background: #e0f2fe; color: #075985; }
+.pay-pill-rejected { background: #fee2e2; color: #991b1b; }
+.pay-pill-confirmed_by_support { background: #dcfce7; color: #166534; }
+.pay-pill-payment_sent_to_hotel { background: #ecfdf5; color: #065f46; }
+.pay-pill-completed { background: #e2e8f0; color: #475569; }

@@ -134,7 +134,11 @@
               <div class="muted"><%= nights %> night<%= nights > 1 ? 's' : '' %> · <%= guests %> guest<%= guests > 1 ? 's' : '' %></div>
               <div class="stay-price">
                 <%= nights %> × <%= money(Math.round(baseNightly)) %> birr = <strong><%= money(sub) %> birr</strong>
-                <span class="muted">+ <%= C.SERVICE_FEE_PERCENT %>% service fee at checkout</span>
+                <% if (C.SERVICE_FEE_PERCENT > 0) { %>
+                  <span class="muted">+ <%= C.SERVICE_FEE_PERCENT %>% service fee at checkout</span>
+                <% } else { %>
+                  <span class="muted">No booking fees</span>
+                <% } %>
               </div>
             </div>
             <a class="btn btn-primary btn-block"

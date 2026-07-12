@@ -39,6 +39,8 @@
                   <span class="pill pill-featured" style="font-size:.7rem;">Owner</span>
                 <% } else if (user.role === 'provider') { %>
                   <span class="pill pill-verified" style="font-size:.7rem;">Provider</span>
+                <% } else if (user.role === 'support') { %>
+                  <span class="pill pill-confirmed" style="font-size:.7rem;">Support</span>
                 <% } else if (user.role === 'seeker') { %>
                   <span class="pill pill-active" style="font-size:.7rem;">Seeker</span>
                 <% } %>
@@ -48,6 +50,7 @@
             <div class="profile-dropdown-divider"></div>
 
             <% if (user.role === 'seeker') { %>
+              <a href="/my/bookings" class="profile-dropdown-item">My bookings</a>
               <% if (user.providerAppStatus === 'pending') { %>
                 <div class="profile-dropdown-item disabled">Application pending…</div>
               <% } else { %>
@@ -57,6 +60,12 @@
               <a href="/provider" class="profile-dropdown-item">Dashboard</a>
               <a href="/provider/calendar" class="profile-dropdown-item">Calendar</a>
               <a href="/provider/reservations" class="profile-dropdown-item">Reservations</a>
+              <a href="/provider/payout" class="profile-dropdown-item">Payout details</a>
+              <a href="/my/bookings" class="profile-dropdown-item">My bookings</a>
+            <% } else if (user.role === 'support') { %>
+              <a href="/support" class="profile-dropdown-item">Support dashboard</a>
+              <a href="/support?tab=payouts" class="profile-dropdown-item">Host payouts</a>
+              <a href="/support/bank-account" class="profile-dropdown-item">Bank account</a>
             <% } else if (user.role === 'owner') { %>
               <div class="owner-nav-menu">
                 <button class="profile-dropdown-item owner-nav-trigger" style="width:100%;text-align:left;background:none;border:none;cursor:pointer;display:flex;justify-content:space-between;align-items:center;">
@@ -69,6 +78,7 @@
                   <a href="/owner/applications"   class="profile-dropdown-item" style="padding-left:1.5rem;">Applications</a>
                   <a href="/owner/listings"       class="profile-dropdown-item" style="padding-left:1.5rem;">All listings</a>
                   <a href="/admin/bookings"        class="profile-dropdown-item" style="padding-left:1.5rem;">Bookings</a>
+                  <a href="/support"               class="profile-dropdown-item" style="padding-left:1.5rem;">Payments &amp; support</a>
                 </div>
               </div>
             <% } else if (user.role === 'admin') { %>

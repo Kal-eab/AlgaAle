@@ -1,0 +1,75 @@
+<%- include('../partials/header', { title: 'Bank account — AlgaAle Support' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Bank account</h1>
+      <p class="muted" style="margin:4px 0 0;">The account guests are told to transfer their money into.</p>
+    </div>
+    <a href="/support" class="btn btn-ghost">Back to support</a>
+  </div>
+
+  <div class="pay-layout">
+    <div>
+      <% if (!accounts.length) { %>
+        <div class="empty"><p>No bank account yet. Add one — guests cannot pay until you do.</p></div>
+      <% } %>
+
+      <% accounts.forEach(function(a){ %>
+        <section class="panel pay-card">
+          <div class="pay-card-head">
+            <div>
+              <h3><%= a.bankName %></h3>
+              <div class="muted"><%= a.accountHolderName %></div>
+            </div>
+            <% if (a.isActive) { %>
+              <span class="pill pill-verified">Shown to guests</span>
+            <% } %>
+          </div>
+          <dl class="bank-details">
+            <dt>Account number</dt><dd><span class="bank-acct"><%= a.accountNumber %></span></dd>
+            <% if (a.branch) { %><dt>Branch</dt><dd><%= a.branch %></dd><% } %>
+            <% if (a.instructions) { %><dt>Instructions</dt><dd><%= a.instructions %></dd><% } %>
+          </dl>
+          <div class="pay-card-actions">
+            <% if (!a.isActive) { %>
+              <form action="/support/bank-account/<%= a.id %>/activate" method="POST" class="inline-form">
+                <button class="btn btn-primary btn-sm">Show this one to guests</button>
+              </form>
+            <% } %>
+            <form action="/support/bank-account/<%= a.id %>/delete" method="POST" class="inline-form"
+                  onsubmit="return confirm('Remove this bank account?');">
+              <button class="btn btn-danger btn-sm">Remove</button>
+            </form>
+          </div>
+        </section>
+      <% }) %>
+    </div>
+
+    <aside class="pay-side">
+      <section class="panel book-card">
+        <h3>Add an account</h3>
+        <form action="/support/bank-account" method="POST">
+          <label class="field"><span>Bank name *</span>
+            <input type="text" name="bankName" required placeholder="Commercial Bank of Ethiopia" />
+          </label>
+          <label class="field"><span>Account holder *</span>
+            <input type="text" name="accountHolderName" required placeholder="AlgaAle PLC" />
+          </label>
+          <label class="field"><span>Account number *</span>
+            <input type="text" name="accountNumber" required placeholder="1000123456789" />
+          </label>
+          <label class="field"><span>Branch</span>
+            <input type="text" name="branch" placeholder="Bole, Addis Ababa" />
+          </label>
+          <label class="field"><span>Instructions for guests</span>
+            <input type="text" name="instructions" placeholder="Transfer the exact amount, then upload the receipt." />
+          </label>
+          <button class="btn btn-primary btn-block">Add and show to guests</button>
+        </form>
+      </section>
+    </aside>
+  </div>
+</div>
+
+<%- include('../partials/footer') %>

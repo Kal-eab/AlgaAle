@@ -14,6 +14,7 @@
     <a href="/provider/calendar" class="btn btn-ghost">Calendar</a>
     <a href="/provider/reservations" class="btn btn-ghost">Reservations</a>
     <a href="/provider/rooms" class="btn btn-ghost">Rooms</a>
+    <a href="/provider/payout" class="btn btn-ghost">Payout</a>
   </div>
 
   <div class="res-tabs">
@@ -64,7 +65,19 @@
           <td><%= b.nights != null ? b.nights : '—' %></td>
           <td><%= b.numRooms || 1 %></td>
           <td><span class="pill pill-<%= b.status %>"><%= b.status.replace('_',' ') %></span></td>
-          <td><span class="pill pill-<%= b.paymentStatus === 'paid' ? 'verified' : 'pending' %>"><%= b.paymentStatus || 'pending' %></span></td>
+          <td>
+            <% var pay = payments[b.id]; %>
+            <% if (pay) { %>
+              <span class="pill pay-pill pay-pill-<%= pay.status %>"><%= C.paymentLabel(pay.status) %></span>
+              <% if (pay.status === 'confirmed_by_support') { %>
+                <br><span class="muted" style="font-size:.75rem;">You get <%= money(pay.hotelPayoutAmount) %> birr on check-in</span>
+              <% } else if (pay.paidToHotelAt) { %>
+                <br><span class="muted" style="font-size:.75rem;"><%= money(pay.hotelPayoutAmount) %> birr sent to you</span>
+              <% } %>
+            <% } else { %>
+              <span class="pill pill-<%= b.paymentStatus === 'paid' ? 'verified' : 'pending' %>"><%= b.paymentStatus || 'pending' %></span>
+            <% } %>
+          </td>
           <td><%= b.total != null ? money(b.total) + ' birr' : '—' %></td>
           <td class="actions-cell res-actions">
             <% function act(status, label) { %>

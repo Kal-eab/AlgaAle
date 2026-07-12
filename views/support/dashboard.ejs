@@ -1,0 +1,202 @@
+<%- include('../partials/header', { title: 'Support — AlgaAle' }) %>
+
+<div class="container admin">
+  <div class="admin-head">
+    <div>
+      <h1>Support</h1>
+      <p class="muted" style="margin:4px 0 0;">Verify guest payments, then pay the hosts once guests arrive.</p>
+    </div>
+    <a href="/support/bank-account" class="btn btn-ghost">Bank account</a>
+  </div>
+
+  <% if (!bankAccount) { %>
+    <div class="alert alert-error">
+      No active bank account — guests have nowhere to send money.
+      <a href="/support/bank-account">Add one now</a>.
+    </div>
+  <% } %>
+
+  <div class="stat-cards">
+    <div class="panel stat-card"><div class="stat-num"><%= counts.pending %></div><div class="stat-label">Payments to verify</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= counts.payouts %></div><div class="stat-label">Hosts awaiting payout</div></div>
+    <div class="panel stat-card"><div class="stat-num"><%= money(revenue.owed) %></div><div class="stat-label">Birr owed to hosts</div></div>
+    <div class="panel stat-card stat-revenue"><div class="stat-num"><%= money(revenue.commission) %></div><div class="stat-label">Birr commission earned</div></div>
+  </div>
+
+  <div class="res-tabs">
+    <a href="/support?tab=pending"  class="res-tab <%= tab === 'pending'  ? 'is-active' : '' %>">Pending payments (<%= counts.pending %>)</a>
+    <a href="/support?tab=payouts"  class="res-tab <%= tab === 'payouts'  ? 'is-active' : '' %>">Awaiting host payment (<%= counts.payouts %>)</a>
+    <a href="/support?tab=history"  class="res-tab <%= tab === 'history'  ? 'is-active' : '' %>">History (<%= counts.history %>)</a>
+    <% if (tab === 'history') { %>
+      <form action="/support" method="GET" class="res-search">
+        <input type="hidden" name="tab" value="history" />
+        <input type="text" name="q" value="<%= q %>" placeholder="Search guest, phone, booking…" />
+      </form>
+    <% } %>
+  </div>
+
+  <% if (!rows.length) { %>
+    <div class="empty">
+      <p>
+        <% if (tab === 'pending') { %>Nothing to verify right now.
+        <% } else if (tab === 'payouts') { %>No hosts are waiting to be paid.
+        <% } else { %>No payments yet.<% } %>
+      </p>
+    </div>
+  <% } %>
+
+  <!-- ============================ PENDING ============================ -->
+  <% if (tab === 'pending') { %>
+    <div class="pay-cards">
+      <% rows.forEach(function(r){ var p = r.payment, b = r.booking; %>
+        <section class="panel pay-card">
+          <div class="pay-card-head">
+            <div>
+              <h3><%= b.name %> <span class="muted">· <%= b.phone %></span></h3>
+              <div class="muted"><%= b.listingTitle %><% if (r.room) { %> — <%= r.room.name %><% } %></div>
+            </div>
+            <div class="pay-card-amount"><%= money(p.paymentAmount) %> birr</div>
+          </div>
+
+          <div class="pay-card-grid">
+            <div>
+              <dl class="bank-details">
+                <dt>Dates</dt><dd><%= b.checkinDate %> → <%= b.checkoutDate %> (<%= b.nights %> night<%= b.nights > 1 ? 's' : '' %>)</dd>
+                <dt>Rooms</dt><dd><%= b.numRooms || 1 %></dd>
+                <dt>Booking</dt><dd><%= b.id %></dd>
+                <dt>Host payout</dt><dd><%= money(p.hotelPayoutAmount) %> birr</dd>
+                <dt>Commission</dt><dd><%= money(p.commissionAmount) %> birr</dd>
+                <dt>Host contact</dt>
+                <dd>
+                  <%= (r.listing && r.listing.ownerName) || '—' %>
+                  <% if (r.listing && r.listing.ownerPhone) { %><br><%= r.listing.ownerPhone %><% } %>
+                </dd>
+              </dl>
+              <% if (p.paymentNote) { %>
+                <p class="muted" style="font-size:.85rem;"><strong>Guest note:</strong> <%= p.paymentNote %></p>
+              <% } %>
+            </div>
+
+            <div class="pay-proof">
+              <% if (p.screenshotUrl) { %>
+                <a href="<%= p.screenshotUrl %>" target="_blank" rel="noopener">
+                  <img src="<%= p.screenshotUrl %>" alt="Payment screenshot from <%= b.name %>" />
+                </a>
+                <p class="muted" style="font-size:.8rem;">Sent <%= new Date(p.screenshotUploadedAt).toLocaleString() %> — click to enlarge</p>
+              <% } else { %>
+                <p class="muted">No screenshot submitted.</p>
+              <% } %>
+            </div>
+          </div>
+
+          <div class="pay-card-actions">
+            <form action="/support/payments/<%= p.id %>/confirm" method="POST" class="pay-action-form">
+              <input type="text" name="notes" placeholder="Notes (optional)" />
+              <button class="btn btn-primary">Confirm payment</button>
+            </form>
+            <form action="/support/payments/<%= p.id %>/reject" method="POST" class="pay-action-form">
+              <input type="text" name="reason" placeholder="Reason shown to the guest *" required />
+              <button class="btn btn-danger">Reject</button>
+            </form>
+          </div>
+          <p class="muted" style="font-size:.8rem;margin:.5rem 0 0;">
+            Confirming holds the room and puts this reservation in the host's dashboard.
+          </p>
+        </section>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <!-- ============================ PAYOUTS ============================ -->
+  <% if (tab === 'payouts') { %>
+    <div class="pay-cards">
+      <% rows.forEach(function(r){ var p = r.payment, b = r.booking; var payout = r.host && r.host.payout; %>
+        <section class="panel pay-card">
+          <div class="pay-card-head">
+            <div>
+              <h3><%= b.listingTitle %></h3>
+              <div class="muted">Guest <%= b.name %> · arrived <%= new Date(p.arrivedAt).toLocaleString() %></div>
+            </div>
+            <div class="pay-card-amount"><%= money(p.hotelPayoutAmount) %> birr</div>
+          </div>
+
+          <dl class="bank-details">
+            <dt>Guest paid</dt><dd><%= money(p.paymentAmount) %> birr</dd>
+            <dt>Commission kept</dt><dd><%= money(p.commissionAmount) %> birr (<%= C.COMMISSION_PERCENT %>%)</dd>
+            <dt>Send to host</dt><dd><strong><%= money(p.hotelPayoutAmount) %> birr</strong></dd>
+            <dt>Host</dt>
+            <dd>
+              <%= (r.listing && r.listing.ownerName) || '—' %>
+              <% if (r.listing && r.listing.ownerPhone) { %><br><%= r.listing.ownerPhone %><% } %>
+            </dd>
+            <dt>Host bank</dt>
+            <dd>
+              <% if (payout && payout.accountNumber) { %>
+                <%= payout.bankName %><br>
+                <%= payout.accountName %><br>
+                <span class="bank-acct"><%= payout.accountNumber %></span>
+              <% } else { %>
+                <span class="rn-none">No payout details — ask the host to add them at /provider/payout</span>
+              <% } %>
+            </dd>
+          </dl>
+
+          <form action="/support/payments/<%= p.id %>/send-to-hotel" method="POST" class="pay-payout-form">
+            <label class="field">
+              <span>Payment method</span>
+              <select name="method">
+                <% C.PAYMENT_METHODS.forEach(function(m){ %>
+                  <option value="<%= m.value %>"><%= m.label %></option>
+                <% }) %>
+              </select>
+            </label>
+            <label class="field">
+              <span>Transaction reference</span>
+              <input type="text" name="reference" placeholder="e.g. TXN-20260712-001" />
+            </label>
+            <label class="field">
+              <span>Notes</span>
+              <input type="text" name="notes" placeholder="Optional" />
+            </label>
+            <button class="btn btn-primary">Mark payment sent</button>
+          </form>
+        </section>
+      <% }) %>
+    </div>
+  <% } %>
+
+  <!-- ============================ HISTORY ============================ -->
+  <% if (tab === 'history' && rows.length) { %>
+    <table class="table">
+      <thead>
+        <tr><th>Guest</th><th>Place</th><th>Dates</th><th>Paid</th><th>Payout</th><th>Commission</th><th>Status</th><th>Reference</th><th></th></tr>
+      </thead>
+      <tbody>
+        <% rows.forEach(function(r){ var p = r.payment, b = r.booking; %>
+          <tr>
+            <td><strong><%= b.name %></strong><br><span class="muted"><%= b.phone %></span></td>
+            <td><%= b.listingTitle %><br><span class="muted"><%= b.id %></span></td>
+            <td><%= b.checkinDate %><br><span class="muted"><%= b.checkoutDate %></span></td>
+            <td><%= money(p.paymentAmount) %></td>
+            <td><%= money(p.hotelPayoutAmount) %></td>
+            <td><%= money(p.commissionAmount) %></td>
+            <td><span class="pill pay-pill pay-pill-<%= p.status %>"><%= C.paymentLabel(p.status) %></span></td>
+            <td>
+              <%= p.paymentReference || '—' %>
+              <% if (p.rejectionReason) { %><br><span class="muted"><%= p.rejectionReason %></span><% } %>
+            </td>
+            <td>
+              <% if (p.status === 'payment_sent_to_hotel') { %>
+                <form action="/support/payments/<%= p.id %>/complete" method="POST" class="inline-form">
+                  <button class="btn btn-sm btn-ghost">Complete</button>
+                </form>
+              <% } %>
+            </td>
+          </tr>
+        <% }) %>
+      </tbody>
+    </table>
+  <% } %>
+</div>
+
+<%- include('../partials/footer') %>
